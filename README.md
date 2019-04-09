@@ -22,7 +22,7 @@
   // #IMP 2019-04-09 argc 命令行参数的个数
   // argv 命令行参数的值
   {
-  // #TODO 2019-04-09 printf 怎么用来，算了，今天懒得分析了，以后再分析
+  // #TODO 2019-04-09 printf 怎么用来着？算了，今天懒得分析了，以后再分析
       printf("hello, world!\n");
       return 0;
   }
@@ -31,3 +31,11 @@
 ### Git使用
 
 1. 每个人在自己的分支上进行学习，所有笔记都由程合并到主分支当中
+2. 拉取个人的分支
+    `git clone -b 你的分支名 git@github.com:beardnick/BashAnalysis.git`
+3. 更新修改的文件
+    `git add -u`
+4. 提交更新到本地代码库并书写提交日志（注意写好git提交日志，表明自己做了什么）
+    `git commit -m ‘添加笔记‘`
+5. 提交更新到github上
+    `git push origin 你的分支名`
