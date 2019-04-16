@@ -7,9 +7,20 @@ doc/
 # 忽略bash示例脚本
 examples/
 
-# 忽略奇怪后缀的文件
+# 忽略奇�?后缀的文�?
 *.cache
 *.pdf
 *.po
 *.gmo
 
+
+
+.vscode
+.vscode/ipch/dac8d9ad0b8dc681/mmap_address.bin
+.vscode/ipch/dac8d9ad0b8dc681/SHELL.ipch
+.vscode/ipch/3da5751d0465995b/mmap_address.bin
+.gitignore
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/settings.json
+.vscode/tasks.json
