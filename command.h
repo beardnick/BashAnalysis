@@ -317,6 +317,7 @@ typedef struct arith_com {
 #define COND_TERM	5
 #define COND_EXPR	6
 
+
 typedef struct cond_com {
   int flags;
   int line;
