@@ -179,6 +179,7 @@ reader_loop ()
 
 	      execute_command (current_command);
 
+// #NOTE 2019-05-18 结束标号，指令执行完成
 	    exec_done:
 	      QUIT;
 

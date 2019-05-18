@@ -13,3 +13,4 @@ examples/
 *.po
 *.gmo
 
+.vscode/
