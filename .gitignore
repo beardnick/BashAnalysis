@@ -4,13 +4,16 @@ tests/
 # 忽略文档
 doc/
 
+
 # 忽略bash示例脚本
 examples/
 
 # 忽略奇怪后缀的文件
 *.cache
-*.pdf
 *.po
 *.gmo
 
 .vscode/
+
+# # 否定忽略note笔记
+# ! note/*.pdf

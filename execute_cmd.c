@@ -401,6 +401,7 @@ execute_command (command)
   begin_unwind_frame ("execute-command");
   add_unwind_protect (dispose_fd_bitmap, (char *)bitmap);
 
+// #NOTE 2019-05-18 非异步执行
   /* Just do the command, but not asynchronously. */
   result = execute_command_internal (command, 0, NO_PIPE, NO_PIPE, bitmap);
 
