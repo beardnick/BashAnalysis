@@ -25,6 +25,7 @@
 */
 #define INSTALL_DEBUG_MODE
 
+// #NOTE 2019-05-27 config.h是使用configure自动生成的文件，保存了电脑的基本信息
 #include "config.h"
 
 #include "bashtypes.h"
@@ -102,6 +103,8 @@ extern char **environ;	/* used if no third argument to main() */
 #endif
 
 extern char *dist_version, *release_status;
+// #NOTE 2019-05-27 extern引用不在此文件中的全局变量，编译器会自动去
+// 其他C文件里面去找，比如这里的patch_level就在version.c里面
 extern int patch_level, build_version;
 extern int shell_level;
 extern int subshell_environment;
