@@ -28,9 +28,14 @@
 #include "config.h"
 
 #include "bashtypes.h"
+
+/*
+ * 在没有定义MINIX文件系统但是定义了HAVE_SYS_FILE_H宏的时候引入系统中的文件数据结构
+ */
 #if !defined (_MINIX) && defined (HAVE_SYS_FILE_H)
 #  include <sys/file.h>
 #endif
+
 #include "posixstat.h"
 #include "posixtime.h"
 #include "bashansi.h"
@@ -317,7 +322,7 @@ static void add_shopt_to_alist __P((char *, int));
 static void run_shopt_alist __P((void));
 
 static void execute_env_file __P((char *));
-static void run_startup_files __P((void));
+static void run_startup_files __P((void));//判断是不是由sshd启动的bash
 static int open_shell_script __P((char *));
 static void set_bash_input __P((void));
 static int run_one_command __P((char *));
@@ -368,7 +373,14 @@ main (argc, argv)
 #else /* !NO_MAIN_ENV_ARG */
 int
 main (argc, argv, env)
-     int argc;
+     int argc;//整型的argc是存放程序运行时发送个main函数的参数个数。
+     /*
+      * argv存放指向字符串参数的指针数组。
+        argv[0]-----指向程序运行的全路径
+        argv[1]-----指向执行程序名后的第一个字符串；argv[2]-----指向执行程序名后的第二个字符串…
+        argv[argc]-------NULL
+        env指向当前的一组环境变量字符串，格式为VARNAME=value，以NULL结束
+      */
      char **argv, **env;
 #endif /* !NO_MAIN_ENV_ARG */
 {
@@ -377,6 +389,7 @@ main (argc, argv, env)
 #if defined (RESTRICTED_SHELL)
   int saverst;
 #endif
+  //volatile的变量是说这变量可能会被意想不到地改变，这样，编译器就不会去假设这个变量的值了。
   volatile int locally_skip_execution;
   volatile int arg_index, top_level_arg_index;
 #ifdef __OPENNT
@@ -395,6 +408,7 @@ main (argc, argv, env)
 #endif
 
   /* Catch early SIGINTs. */
+  //抓住早期的信号
   code = setjmp_nosigs (top_level);
   if (code)
     exit (2);
@@ -417,8 +431,12 @@ main (argc, argv, env)
   set_default_locale ();
 
   running_setuid = uidget ();
-
-  if (getenv ("POSIXLY_CORRECT") || getenv ("POSIX_PEDANTIC"))
+/*
+ * bash的posix模式
+  当bash以posix模式启动时，就像使用--posix选项一样，它的启动文件遵循POSIX标准。
+  这种模式下，交互式shell展开ENV变量的并读取和执行以ENV变量值为文件名的配置文件。不会读取其他启动文件。
+ */
+  if (getenv ("POSIXLY_CORRECT") || getenv ("POSIX_PEDANTIC"))//POSIXLY_CORRECT如果被设置，bash以POSIX模式启动
     posixly_correct = 1;
 
 #if defined (USE_GNU_MALLOC_LIBRARY)
@@ -436,6 +454,7 @@ main (argc, argv, env)
   shell_reinitialized = 0;
 
   /* Initialize `local' variables for all `invocations' of main (). */
+  //为main函数中调用的所有变量初始化本地变量
   arg_index = 1;
   if (arg_index > argc)
     arg_index = argc;
@@ -455,6 +474,7 @@ main (argc, argv, env)
   if (shell_initialized || shell_name)
     {
       /* Make sure that we do not infinitely recurse as a login shell. */
+      //保证不把递归作为登录shell
       if (*shell_name == '-')
 	shell_name++;
 
@@ -472,26 +492,28 @@ main (argc, argv, env)
   /* Find full word arguments first. */
   arg_index = parse_long_options (argv, arg_index, argc);
 
-  if (want_initial_help)
+  if (want_initial_help)//初始化的帮助
     {
-      show_shell_usage (stdout, 1);
+      show_shell_usage (stdout, 1);//输出shell基本用法
       exit (EXECUTION_SUCCESS);
     }
 
-  if (do_version)
+  if (do_version)//版本
     {
-      show_shell_version (1);
+      show_shell_version (1);//显示版本
       exit (EXECUTION_SUCCESS);
     }
 
   echo_input_at_read = verbose_flag;	/* --verbose given */
 
   /* All done with full word options; do standard shell option parsing.*/
+  //全部使用完整的选项完成；执行标准shell选项解析
   this_command_name = shell_name;	/* for error reporting */
   arg_index = parse_shell_options (argv, arg_index, argc);
 
   /* If user supplied the "--login" (or -l) flag, then set and invert
      LOGIN_SHELL. */
+  //以登录方式进入shell
   if (make_login_shell)
     {
       login_shell++;
@@ -532,6 +554,7 @@ main (argc, argv, env)
 	standard input is a terminal
 	standard error is a terminal
      Refer to Posix.2, the description of the `sh' utility. */
+  //交互shell
 
   if (forced_interactive ||		/* -i flag */
       (!command_execution_string &&	/* No -c command and ... */
@@ -553,6 +576,7 @@ main (argc, argv, env)
    * also systems that open persistent FDs to other agents or files as part
    * of process startup; these need to be set to be close-on-exec.
    */
+  //TODO
   if (login_shell && interactive_shell)
     {
       for (i = 3; i < 20; i++)
@@ -588,6 +612,7 @@ main (argc, argv, env)
    * a now-obsolete command that sets neither EMACS nor INSIDE_EMACS:
    * M-x terminal -> TERM='emacs-em7955' (line editing)
    */
+  //
   if (interactive_shell)
     {
       char *term, *emacs, *inside_emacs;;
@@ -855,7 +880,7 @@ parse_long_options (argv, arg_start, arg_end)
 }
 
 static int
-parse_shell_options (argv, arg_start, arg_end)
+parse_shell_options (argv, arg_start, arg_end)//理解选择的shell操作
      char **argv;
      int arg_start, arg_end;
 {
@@ -949,6 +974,12 @@ void
 exit_shell (s)
      int s;
 {
+    /*
+     * stdout 标准输出设备，对应终端屏幕。是一个定义在<stdio.h>的宏，它展开到一个 FILE*类型的表达式（不一定是常量），
+       这个表达式指向一个与标准输出流（standard output stream）相关连的 FILE 对象。
+     * stderr 标准错误输出设备 ，对应终端的屏幕。
+       进程将从标准输入文件中得到输入数据，将正常输出数据输出到标准输出文件，而将错误信息送到标准错误文件中。
+     */
   fflush (stdout);		/* XXX */
   fflush (stderr);
 
@@ -1924,6 +1955,9 @@ shell_reinitialize ()
   shell_reinitialized = 1;
 }
 
+/*
+ * 展示给用户的shell用法的界面
+ */
 static void
 show_shell_usage (fp, extra)
      FILE *fp;
