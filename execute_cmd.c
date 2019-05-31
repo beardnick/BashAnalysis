@@ -362,6 +362,7 @@ close_fd_bitmap (fdbp)
 }
 
 /* Return the line number of the currently executing command. */
+// #NOTE 记录当前正在执行的指令行号，用于继续后面的指令
 int
 executing_line_number ()
 {
@@ -394,9 +395,11 @@ executing_line_number ()
 
    EXECUTION_SUCCESS or EXECUTION_FAILURE are the only possible
    return values.  Executing a command with nothing in it returns
-   EXECUTION_SUCCESS. */
+   EXECUTION_SUCCESS. 
+//# NOTE 这里可以解释为什么bash里面命令执行成功后什么显示也没有，默认“没有就是最好”
+*/
 
-/*内部命令调用*/
+/* #IMP 内部命令调用*/
 int
 execute_command (command)
      COMMAND *command;
@@ -427,6 +430,7 @@ execute_command (command)
 }
 
 /* Return 1 if TYPE is a shell control structure type. */
+// #NOTE　判断是否是控制语句，控制语句跳转到不同地方执行
 static int
 shell_control_structure (type)
      enum command_type type;
@@ -445,6 +449,7 @@ shell_control_structure (type)
 #if defined (COND_COMMAND)
     case cm_cond:
 #endif
+// #IMP shell 能执行的所有控制语句
     case cm_case:
     case cm_while:
     case cm_until:
@@ -502,6 +507,7 @@ restore_signal_mask (set)
 
 #ifdef DEBUG
 /* A debugging function that can be called from gdb, for instance. */
+// #NOTE 调试？？？
 void
 open_files ()
 {
@@ -520,13 +526,15 @@ open_files ()
 }
 #endif
 
+// #NOTE 对标准输入的处理
 static void
 async_redirect_stdin ()
 {
   int fd;
-
+// fd0 :standered input-keyboard
+// fd1: standered output-screen 
   fd = open ("/dev/null", O_RDONLY);
-  if (fd > 0)
+  if (fd > 0) 
     {
       dup2 (fd, 0);
       close (fd);
@@ -550,19 +558,21 @@ async_redirect_stdin ()
    return values.  Executing a command with nothing in it returns
    EXECUTION_SUCCESS. */
 /*
-execute_command_internal内部流程：
-该函数是shell源码中执行命令的实际操作函数。他需要对作为操作参数传入的具体命令结构的value成员进行分析，并针对不同的value类型，
-再调用具体类型的命令执行函数进行具体命令的解释执行工作。
+// execute_command_internal内部流程：
+// 该函数是shell源码中执行命令的实际操作函数。他需要对作为操作参数传入的具体命令结构的value成员进行分析，并针对不同的value类型，
+// 再调用具体类型的命令执行函数进行具体命令的解释执行工作。
 
-具体来说：如果value是simple，则直接调用execute_simple_command函数进行执行，
-execute_simple_command再根据命令是内部命令或磁盘外部命令分别调用execute_builtin和execute_disk_command来执行,
-其中，execute_disk_command在执行外部命令的时候调用make_child函数fork子进程执行外部命令。
+// 具体来说：如果value是simple，则直接调用execute_simple_command函数进行执行，
+// execute_simple_command再根据命令是内部命令或磁盘外部命令分别调用execute_builtin和execute_disk_command来执行,
+// 其中，execute_disk_command在执行外部命令的时候调用make_child函数fork子进程执行外部命令。
 
-如果value是其他类型，则调用对应类型的函数进行分支控制。
-举例来说，如果是value是for_commmand,即这是一个for循环控制结构命令，则调用execute_for_command函数。
-在该函数中，将枚举每一个操作域中的元素，对其再次调用execute_command函数进行分析。
-即execute_for_command这一类函数实现的是一个命令的展开以及流程控制以及递归调用execute_command的功能。
+// 如果value是其他类型，则调用对应类型的函数进行分支控制。
+// 举例来说，如果是value是for_commmand,即这是一个for循环控制结构命令，则调用execute_for_command函数。
+// 在该函数中，将枚举每一个操作域中的元素，对其再次调用execute_command函数进行分析。
+// 即execute_for_command这一类函数实现的是一个命令的展开以及流程控制以及递归调用execute_command的功能。
 */
+
+//#NOTE asynchronous: 异步的
 int
 execute_command_internal (command, asynchronous, pipe_in, pipe_out,
 			  fds_to_close)
@@ -4025,6 +4035,7 @@ is_dirname (pathname)
 /* The meaty part of all the executions.  We have to start hacking the
    real execution of commands here.  Fork a process, set things up,
    execute the command. */
+// #IMP execute_simple_command
 static int
 execute_simple_command (simple_command, pipe_in, pipe_out, async, fds_to_close)
      SIMPLE_COM *simple_command;

@@ -5,6 +5,23 @@
 -->
 # Bash分析总览
 
++ 命令的执行分为两步：
+１．解释命令： shell.c 中　
+COMMAND *global_command = (COMMAND *)NULL; //#IMP 获取命令的结构体
+２．执行命令：execute_cmd.c 中　execute_command (command) 根据解释的command结构体中命令类型来调用函数执行
+
++ main.c 函数入口在：　shell.c 中
+  - shell.c 中首先初始化：　shell_initialize ()
+
+
+
+
+
+
+
+
+
+
 + ***main函数入口***
   1. location: *shell.c*
 
@@ -44,13 +61,41 @@
           char *here_doc_eof;		/* The word that appeared in <<foo. */
         } REDIRECT;
         ```
+// #IMP 定义bash命令结构
+/* What a command looks like. */ 
+```c
+typedef struct command {
+  enum command_type type;	/* FOR CASE WHILE IF CONNECTION or SIMPLE. */
+  int flags;			/* Flags controlling execution environment. */
+  int line;			/* line number the command starts on */
+  REDIRECT *redirects;		/* Special redirects for FOR CASE, etc. */
+  union {
+    struct for_com *For;
+    struct case_com *Case;
+    struct while_com *While;
+    struct if_com *If;
+    struct connection *Connection;
+    struct simple_com *Simple;
+    struct function_def *Function_def;
+    struct group_com *Group;
+#if defined (SELECT_COMMAND)
+    struct select_com *Select;
+#endif
+#if defined (DPAREN_ARITHMETIC)
+    struct arith_com *Arith;
+#endif
+#if defined (COND_COMMAND)
+    struct cond_com *Cond;
+#endif
+#if defined (ARITH_FOR_COMMAND)
+    struct arith_for_com *ArithFor;
+#endif
+    struct subshell_com *Subshell;
+    struct coproc_com *Coproc;
+  } value; 
+  //#IMP 指令的类型值，shell根据不同value类型执行不同种类的指令，为simple时又会判断时候是builtin指令来调用
+  // execute_command 和　execute_internal_command 
+} COMMAND;
+```
 
 
-*** execute_com.c ***
-+ execute_command() 外部调用接口
-+ execute_command_internal() 内部调用接口
-  - execute_builtin() 执行内部命令
-  - execute_disk_command() 执行外部命令
-    - 调用jobs.c / nojobs.c make_child 来fork新进程
-
-+ builtin = find_shell_builtin (this_command_name) 找到要执行的命令在哪里
