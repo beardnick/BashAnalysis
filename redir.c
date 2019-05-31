@@ -18,6 +18,50 @@
    along with Bash.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+
+/* #IMP 2019-05-29重定向的定义与执行，以下是关于重定向实现原理的一些文字描述。
+在linux中，COMMAND结构用于描述一条bash命令，其中有很多参数来描述这个命令，比如其中的type用于表示一个命令对象代表的命令属于何种类型,
+又比如整型变量flags用于记录一系列有关运行环境的标志。同时在COMMAND结构还有一个REDIRECT类型的指针（redirects），指向了本命令的重定向信息。
+REDIRECT结构记录了重定向的源描述符和目标：redirectee（类型为REDIRECTEE），REDIRECTEE是一个联合类型，它可以是目标描述符或目标文件名。
+REDIRECT本身包含指向下一个REDIRECT对象的指针，因此对于一个COMMAND对象，可以有一系列重定向信息构成的链表。
+当语法分析器在遇到重定向语法时，将调用make_cmd.c中的make_redirection()函数填写COMMAND结构的REDIRECT参数，并设置表示重定向方式的标志位。
+execute_cmd.c中的函数执行命令时，调用redir.c中的do_redirections()实现重定向。对于重定向信息链表中的每个REDIRECT对象，分别交由do_redirection_internal()处理。
+do_redirection_internal()针对重定向方式的标志位，做一些特定的设置，然后调用redir_open()。
+redir_open()对于不同的重定向目标，调用不同的函数完成文件描述符的打开操作。例如软驱和网络设备文件调用redir_special_open()，
+对于noclobber mode（禁止覆盖变量模式）调用redir_special_open()，
+一般情况下调用常规的open()，打开系统最小未用的文件描述符，实现重定向。*/
+
+
+/* #IMP 2019-05-29 REDIRECT与REDIRECTEE的结构注释
+1.REDIRECT的结构体如下所示：
+typedef struct redirect {
+  struct redirect *next;
+  int redirector;
+  int flags;
+  enum r_instruction  instruction;
+  REDIRECTEE redirectee;
+  char *here_doc_eof;
+} REDIRECT;
+REDIRECT结构是对命令输入输出重定向的定义。
+因为一条命令可以设置多个（输入、输出、错误）重定向，所以REDIRECT结构本身包含指向下一个REDIRECT对象的next指针，以便构成一条命令的重定向链表。
+REDIRECT结构体中的整型参数redirector为重定向源的文件描述符，标志位集合flags定义目标文件打开方式。
+instruction枚举定义了重定向的具体类型，具体类型如下所示:
+enum r_instruction {
+  r_output_direction, r_input_direction, r_inputa_direction,
+  r_appending_to, r_reading_until, r_reading_string,
+  r_duplicating_input, r_duplicating_output, r_deblank_reading_until,
+  r_close_this, r_err_and_out, r_input_output, r_output_force,
+  r_duplicating_input_word, r_duplicating_output_word,
+  r_move_input, r_move_output, r_move_input_word, r_move_output_word
+};
+
+2.重定向的目标记录存放在REDIRECTEE联合中，它可以是一个文件名或文件描述符。REDIRECTEE的定义如下所示：
+typedef union {
+  int dest;		#NOTE 2019-05-30 当文件描述符溢出时候dest为负
+  WORD_DESC *filename;	#NOTE 2019-05-30此处的文件名为目标文件名
+} REDIRECTEE;
+*/
+
 #include "config.h"
 
 #if !defined (__GNUC__) && !defined (HAVE_ALLOCA_H) && defined (_AIX)
@@ -94,6 +138,8 @@ static REDIRECTEE rd;
 
 /* Set to errno when a here document cannot be created for some reason.
    Used to print a reasonable error message. */
+
+//  #NOTE 2019-05-28用于打印错误信息
 static int heredoc_errno;
 
 #define REDIRECTION_ERROR(r, e, fd) \
@@ -107,7 +153,7 @@ do { \
     } \
 } while (0)
 
-void
+void//#NOTE 2019-05-30该模块用于判断各种错误情况，涉及到的错误情况有溢出，覆盖，描述符模糊等，并做出相应的处理。
 redirection_error (temp, error)
      REDIRECT *temp;
      int error;
@@ -118,6 +164,7 @@ redirection_error (temp, error)
   allocname = 0;
   if ((temp->rflags & REDIR_VARASSIGN) && error < 0)
     filename = allocname = savestring (temp->redirector.filename->word);
+    // #NOTE 2019-05-28 当文件描述符溢出时的处理
   else if ((temp->rflags & REDIR_VARASSIGN) == 0 && temp->redirector.dest < 0)
     /* This can happen when read_token_word encounters overflow, like in
        exec 4294967297>x */
@@ -129,6 +176,7 @@ redirection_error (temp, error)
       /* If we're dealing with two file descriptors, we have to guess about
          which one is invalid; in the cases of r_{duplicating,move}_input and
          r_{duplicating,move}_output we're here because dup2() failed. */
+         //#TODO 2019-05-30当使用到dup2()函数时候应该考虑到的错误处理机制？
       switch (temp->instruction)
         {
         case r_duplicating_input:
@@ -210,6 +258,9 @@ expandable_filename:
    how to undo the redirections later, if non-zero.  If flags & RX_CLEXEC
    is non-zero, file descriptors opened in do_redirection () have their
    close-on-exec flag set. */
+
+
+  // #TODO 2019-05-30
 int
 do_redirections (list, flags)
      REDIRECT *list;
@@ -243,6 +294,10 @@ do_redirections (list, flags)
 
 /* Return non-zero if the redirection pointed to by REDIRECT has a
    redirectee.filename that can be expanded. */
+
+/* #NOTE 2019-05-30  在REDIRECT这个结构中内部有redirectee这个小的结构用于存放目标描述符或目标文件名。也就说通过redirectee可以找到目标文件。
+ 当目标文件名可以被扩展的时候以下这个函数会返回1.否则返回0.个人认为是在重定向的过程中，要求返回的文件名应是唯一，容易找到的，如果目标文件还可以被扩
+ 展的话，是否会对重定向带来一些麻烦？*/
 static int
 expandable_redirection_filename (redirect)
      REDIRECT *redirect;
@@ -270,6 +325,10 @@ expandable_redirection_filename (redirect)
 
 /* Expand the word in WORD returning a string.  If WORD expands to
    multiple words (or no words), then return NULL. */
+
+//#TODO 2019-05-30
+
+
 char *
 redirection_expand (word)
      WORD_DESC *word;
@@ -287,6 +346,10 @@ redirection_expand (word)
   expanding_redir = 1;
   /* Now that we've changed the variable search order to ignore the temp
      environment, see if we need to change the cached IFS values. */
+
+
+   /* #NOTE 2019-05-30 shell环境变量IFS（Internal Field Separator）
+   中可能存储的值是空格、TAB、换行符等，在bash中默认是0x0a。它用来在语法分析、变量代入等过程中界定命令*/
   sv_ifs ("IFS");
   tlist2 = expand_words_no_vars (tlist1);
   expanding_redir = 0;
@@ -304,6 +367,8 @@ redirection_expand (word)
     {
       /* We expanded to no words, or to more than a single word.
 	 Dispose of the word list and return NULL. */
+
+
       if (tlist2)
 	dispose_words (tlist2);
       return ((char *)NULL);
@@ -317,7 +382,7 @@ static int
 write_here_string (fd, redirectee)
      int fd;
      WORD_DESC *redirectee;
-{
+{#TODO
   char *herestr;
   int herelen, n, e, old;
 
@@ -358,6 +423,9 @@ write_here_string (fd, redirectee)
 /* Write the text of the here document pointed to by REDIRECTEE to the file
    descriptor FD, which is already open to a temp file.  Return 0 if the
    write is successful, otherwise return errno. */
+
+  // #NOTE 2019-05-30 写下目标文件的内容，当成功写入的时候返回0，否则返回写入失败的原因。
+
 static int
 write_here_document (fd, redirectee)
      int fd;
@@ -452,6 +520,9 @@ write_here_document (fd, redirectee)
 /* Create a temporary file holding the text of the here document pointed to
    by REDIRECTEE, and return a file descriptor open for reading to the temp
    file.  Return -1 on any error, and make sure errno is set appropriately. */
+
+ /*  #NOTE 2019-05-30 首先创建一个临时文件，用来记录目标文件里的信息，并且返回一个文件描述符fd，通过这个fd可以找到刚才那个临时文件。
+ 同时在这个过程中，如果有错误情况发生，也应该做出相应的处理。*/
 static int
 here_document_to_fd (redirectee, ri)
      WORD_DESC *redirectee;
@@ -487,6 +558,8 @@ here_document_to_fd (redirectee, ri)
   /* In an attempt to avoid races, we close the first fd only after opening
      the second. */
   /* Make the document really temporary.  Also make it the input. */
+
+  //#NOTE 2019-05-30在重定向实现过程中，为了避免竞争，必须保证在复制之前，应先把之前的关闭。
   fd2 = open (filename, O_RDONLY|O_BINARY, 0600);
 
   if (fd2 < 0)
@@ -522,6 +595,35 @@ here_document_to_fd (redirectee, ri)
 
 /* A list of pattern/value pairs for filenames that the redirection
    code handles specially. */
+
+  /*  #IMP 2019-05-30当bash发现重定向时它会先查看重定向的文件是不是特殊文件，
+  如果是截获它，自行解释，否则就打开这个文件。此处只是声明，真正的解释还在其他文件中，
+  比如真正解释下面第542行/dev/tcp/HOST/PORT 的代码是在 lib/sh/netopen.c 中。*/
+
+  /* #IMP 2019-05-30  bash 在处理重定向的时候，除了支持本地文件外，如果在编译的时候 enable 这些选项：
+    H*E_DEV_FD(控制是否支持 /dev/fd/[0-9]*)
+    H*E_DEV_STDIN(控制是否支持 /dev/stderr /dev/stdin /dev/stdout)
+    NETWORK_REDIRECTIONS(控制是否支持 /dev/(tcp|udp)/*)
+    则会支持下面代码中几个特殊的形式：
+    /dev/fd/[0-9]*
+    /dev/stderr
+    /dev/stdin
+    /dev/stdout
+    /dev/tcp/ /
+    /dev/udp/ /
+    参考redir.c源码中对_redir_special_filenames的定义
+    在 bash 打开重定向文件的时候，会先调用find_string_in_alist判断这个被打开的文件完整名称是否匹配上述的六种模式，
+    这个函数可以识别通配符，最终调用的是：strmatch 来判断字符串是否匹配，如果匹配成功，则就会调用 redir_special_open 这个函数来打开这些特殊文件。
+
+  上述这段分析的最终的结论为：
+   在印象中：/dev/这个文件夹中保存着系统的设备文件。
+因此当看到/dev/tcp/${HOST}/${PORT} 这样的路径时，总会认为它是一个存在文件系统中的像设备一样的文件，但其实这个文件并不存在。
+而且并不是一个设备文件。这只是 bash 实现的用来实现网络请求的一个接口，
+其实就像我们自己编写的一个命令行程序，按照指定的格式输入 host port参数，就能发起一个 socket连接完全一样。
+但是很奇怪的是为什么这个接口的调用方式和访问文件系统是一样的，这会让很多人误以为这是一个文件，感觉不是特别合理。
+那么如果有这样的需求：如果真的有一个/dev/tcp/host/port文件该如何重定向？
+可能 bash 的设计者在设计这个命令的调用方式的时候就默认不会存在 /dev/tcp 这个文件夹吧，里面也不会有文件。
+还是感觉这种设计不是很合理，哪怕设计成额外的命令行参数也比现在设计成一个伪文件要对使用者的理解更友好一点。*/
 static STRING_INT_ALIST _redir_special_filenames[] = {
 #if !defined (HAVE_DEV_FD)
   { "/dev/fd/[0-9]*", RF_DEVFD },
@@ -596,6 +698,9 @@ redir_special_open (spec, filename, flags, mode, ri)
 /* Open FILENAME with FLAGS in noclobber mode, hopefully avoiding most
    race conditions and avoiding the problem where the file is replaced
    between the stat(2) and open(2). */
+
+
+//   #NOTE 2019-05-30 防止文件被覆盖
 static int
 noclobber_open (filename, flags, mode, ri)
      char *filename;
@@ -605,8 +710,7 @@ noclobber_open (filename, flags, mode, ri)
   int r, fd;
   struct stat finfo, finfo2;
 
-  /* If the file exists and is a regular file, return an error
-     immediately. */
+   //  #NOTE 2019-05-30 如果文件存在并且正常，（r=0表示文件存在）那么就不再下载已经存在的文件，也就说防止文件被覆盖。
   r = stat (filename, &finfo);
   if (r == 0 && (S_ISREG (finfo.st_mode)))
     return (NOCLOBBER_REDIRECT);
@@ -616,6 +720,9 @@ noclobber_open (filename, flags, mode, ri)
      will fail.  Make sure that we do not truncate an existing file.
      Note that we don't turn on O_EXCL unless the stat failed -- if
      the file was not a regular file, we leave O_EXCL off. */
+
+
+   //  #NOTE 2019-05-30当r!=0的时候，表示文件不存在，那么就打开它，并返回fd.
   flags &= ~O_TRUNC;
   if (r != 0)
     {
@@ -662,6 +769,10 @@ redir_open (filename, flags, mode, ri)
 
   /* If we are in noclobber mode, you are not allowed to overwrite
      existing files.  Check before opening. */
+
+
+    //  #IMP 2019-05-30 noclobber用于防止文件被覆盖，所以在这种防止覆盖模式下，当我们打开某一文件之前要判断它是否已经存在，如果存在就不打开。
+
   if (noclobber && CLOBBERING_REDIRECT (ri))
     {
       fd = noclobber_open (filename, flags, mode, ri);
@@ -671,6 +782,30 @@ redir_open (filename, flags, mode, ri)
   else
     {
       do
+     /* #NOTE 2019-05-30 关于int open(char *filename, int flags, mode_t mode);
+      #中的参数flags为以下值或者组合时：
+      #O_RDONLY ：没有文件时返回 -1；有文件时跳过，并且保留文件原来内容
+      #O_WRONLY ：没有文件时返回 -1；有文件时跳过，并且保留文件原来内容
+      #O_RDWR ：没有文件时返回 -1；有文件时跳过，并且保留文件原来内容
+
+      #=============================================
+
+       #O_RDONLY + O_CREAT ： 没有文件时会创建文件；有文件时跳过，并且保留文件原来内容
+       #O_RDONLY + O_TRUNC ： 没有文件时返回 -1；有文件时清空文件内容
+       #O_RDONLY + O_APPEND ： 没有文件时返回 -1；有文件时跳过，并且保留文件原来内容
+
+     #=============================================
+
+      #O_WRONLY + O_CREAT ： 没有文件时会创建文件；有文件时跳过，并且保留文件原来内容
+      #O_WRONLY + O_TRUNC ： 没有文件时返回 -1；有文件时清空文件内容
+      #O_WRONLY + O_APPEND ： 没有文件时返回 -1；有文件时跳过，并且保留文件原来内容
+
+      =============================================
+
+     #O_RDWR + O_CREAT ： 没有文件时会创建文件；有文件时跳过，并且保留文件原来内容
+     #O_RDWR + O_TRUNC ： 没有文件时返回 -1；有文件时清空文件内容
+     #O_RDWR + O_APPEND ： 没有文件时返回 -1；有文件时跳过，并且保留文件原来内容*/
+
 	{
 	  fd = open (filename, flags, mode);
 	  e = errno;
@@ -714,6 +849,14 @@ undoablefd (fd)
    says to remember how to undo each redirection.  If flags & RX_CLEXEC is
    non-zero, then we set all file descriptors > 2 that we open to be
    close-on-exec.  */
+
+
+  /*  #NOTE 2019-05-30  这个模块用于处理特殊的文件重定向，其中用到了三个flag，它们在redir.h中曾被定义，
+      它们的定义如下所示：
+         RX_ACTIVE	0x01	/* do it; don't just go through the motions
+         RX_UNDOABLE	0x02	/* make a list to undo these redirections
+         RX_CLEXEC	0x04	/* set close-on-exec for opened fds > 2 */
+
 static int
 do_redirection_internal (redirect, flags)
      REDIRECT *redirect;
@@ -1184,6 +1327,11 @@ do_redirection_internal (redirect, flags)
    to fd 10 if we have a redirection like 0<&10).  If the value of fdbase
    puts the process over its fd limit, causing fcntl to fail, we try
    again with SHELL_FD_BASE.  Return 0 on success, -1 on error. */
+
+
+/* # NOTE 2019-05-30 文件描述符是和 REDIRECTION_UNDO_LIST中的FD 关联在一起的，同时要注意这个list的内容可能会被改写在它执行之前。
+所以为了保险起见，任何还未被执行的redirections都需要把它们再放到 EXEC_REDIRECTION_UNDO_LIST中*/
+
 static int
 add_undo_redirect (fd, ri, fdbase)
      int fd;
@@ -1423,4 +1571,5 @@ redir_varvalue (redir)
 
   i = vmax;	/* integer truncation */
   return i;
+
 }
