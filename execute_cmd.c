@@ -18,14 +18,11 @@
    along with Bash.  If not, see <http://www.gnu.org/licenses/>.
 */
 /*
-execute_cmd.c/execute_cmd.h
-
-执行命令（COMMAND结构）。外部调用接口是execute_command()，内部通过execute_command_internal()执行命令。execute_command_internal()包含可选的管道重定向以及后台运行的参数。
-
-针对不同类型的命令（控制结构、函数、算术等），execute_command_internal()调用不同的函数来完成相应功能。
-其中execute_builtin()执行内部命令；execute_disk_command()执行外部文件。execute_disk_command()通过调用jobs.c或nojobs.c中的make_child()来fork新进程执行。
-
-本文件中维护了一个文件描述符的位图。
+* execute_cmd.c/execute_cmd.h
+* 执行命令（COMMAND结构）。外部调用接口是execute_command()，内部通过execute_command_internal()执行命令。execute_command_internal()包含可选的管道重定向以及后台运行的参数。
+* 针对不同类型的命令（控制结构、函数、算术等），execute_command_internal()调用不同的函数来完成相应功能。
+* 其中execute_builtin()执行内部命令；execute_disk_command()执行外部文件。execute_disk_command()通过调用jobs.c或nojobs.c中的make_child()来fork新进程执行。
+* 本文件中维护了一个文件描述符的位图。
 */
 #include "config.h"
 
