@@ -17,7 +17,16 @@
    You should have received a copy of the GNU General Public License
    along with Bash.  If not, see <http://www.gnu.org/licenses/>.
 */
+/*
+execute_cmd.c/execute_cmd.h
 
+执行命令（COMMAND结构）。外部调用接口是execute_command()，内部通过execute_command_internal()执行命令。execute_command_internal()包含可选的管道重定向以及后台运行的参数。
+
+针对不同类型的命令（控制结构、函数、算术等），execute_command_internal()调用不同的函数来完成相应功能。
+其中execute_builtin()执行内部命令；execute_disk_command()执行外部文件。execute_disk_command()通过调用jobs.c或nojobs.c中的make_child()来fork新进程执行。
+
+本文件中维护了一个文件描述符的位图。
+*/
 #include "config.h"
 
 #if !defined (__GNUC__) && !defined (HAVE_ALLOCA_H) && defined (_AIX)
@@ -82,7 +91,7 @@ extern int errno;
 #endif
 
 #include "builtins/common.h"
-#include "builtins/builtext.h"	/* list of builtins */
+#include "builtins/builtext.h"	/* list of builtins */ // 内建函数列表
 
 #include "builtins/getopt.h"
 
@@ -104,7 +113,7 @@ extern int errno;
 #if defined (HAVE_MBSTR_H) && defined (HAVE_MBSCHR)
 #  include <mbstr.h>		/* mbschr */
 #endif
-
+/* #IMP extern 关键字可以在一个函数中引用此函数外或此函数所在外的文件的变量*/
 extern int dollar_dollar_pid;
 extern int posixly_correct;
 extern int expand_aliases;
@@ -125,7 +134,7 @@ extern time_t shell_start_time;
 extern char *glob_argv_flags;
 #endif
 
-extern int job_control;	/* XXX */
+extern int job_control;	/* XXX */ 
 
 extern int close __P((int));
 
@@ -134,7 +143,7 @@ static void close_pipes __P((int, int));
 static void do_piping __P((int, int));
 static void bind_lastarg __P((char *));
 static int shell_control_structure __P((enum command_type));
-static void cleanup_redirects __P((REDIRECT *));
+static void cleanup_redirects __P((REDIRECT *)); /* #NOTE 清除重定向*/
 
 #if defined (JOB_CONTROL)
 static int restore_signal_mask __P((sigset_t *));
@@ -389,6 +398,8 @@ executing_line_number ()
    EXECUTION_SUCCESS or EXECUTION_FAILURE are the only possible
    return values.  Executing a command with nothing in it returns
    EXECUTION_SUCCESS. */
+
+/*内部命令调用*/
 int
 execute_command (command)
      COMMAND *command;
@@ -541,6 +552,20 @@ async_redirect_stdin ()
    EXECUTION_SUCCESS or EXECUTION_FAILURE are the only possible
    return values.  Executing a command with nothing in it returns
    EXECUTION_SUCCESS. */
+/*
+execute_command_internal内部流程：
+该函数是shell源码中执行命令的实际操作函数。他需要对作为操作参数传入的具体命令结构的value成员进行分析，并针对不同的value类型，
+再调用具体类型的命令执行函数进行具体命令的解释执行工作。
+
+具体来说：如果value是simple，则直接调用execute_simple_command函数进行执行，
+execute_simple_command再根据命令是内部命令或磁盘外部命令分别调用execute_builtin和execute_disk_command来执行,
+其中，execute_disk_command在执行外部命令的时候调用make_child函数fork子进程执行外部命令。
+
+如果value是其他类型，则调用对应类型的函数进行分支控制。
+举例来说，如果是value是for_commmand,即这是一个for循环控制结构命令，则调用execute_for_command函数。
+在该函数中，将枚举每一个操作域中的元素，对其再次调用execute_command函数进行分析。
+即execute_for_command这一类函数实现的是一个命令的展开以及流程控制以及递归调用execute_command的功能。
+*/
 int
 execute_command_internal (command, asynchronous, pipe_in, pipe_out,
 			  fds_to_close)
@@ -561,7 +586,7 @@ execute_command_internal (command, asynchronous, pipe_in, pipe_out,
 
   if (breaking || continuing)
     return (last_command_exit_value);
-  if (command == 0 || read_but_dont_execute)
+  if (command == 0 || read_but_dont__execute)
     return (EXECUTION_SUCCESS);
 
   QUIT;
@@ -1548,7 +1573,7 @@ execute_in_subshell (command, asynchronous, pipe_in, pipe_out, fds_to_close)
      /dev/null for async commands in the subshell.  This adds more
      sh compatibility, but I'm not sure it's the right thing to do.
      Note that an input pipe to a compound command suffices to inhibit
-     the implicit /dev/null redirection for asynchronous commands
+      the implicit /dev/null redirection for asynchronous commands
      executed as part of that compound command. */
   if (user_subshell)
     {
@@ -4279,7 +4304,7 @@ run_builtin:
      have pipes, then fork a subshell in here.  Otherwise, just execute
      the command directly. */
   if (func == 0 && builtin == 0)
-    builtin = find_shell_builtin (this_command_name);
+    builtin = find_shell_builtin (this_command_name); /* #IMP 通过命令的名字找到要执行的命令在shell的那个地方*/
 
   last_shell_builtin = this_shell_builtin;
   this_shell_builtin = builtin;
@@ -4427,6 +4452,7 @@ builtin_status (result)
   return (r);
 }
 
+/* #IMP 执行内建命令*/
 static int
 execute_builtin (builtin, words, flags, subshell)
      sh_builtin_func_t *builtin;
@@ -4525,8 +4551,9 @@ execute_builtin (builtin, words, flags, subshell)
     }
 
   executing_builtin++;
-  executing_command_builtin |= builtin == command_builtin;
-  result = ((*builtin) (words->next));
+  executing_command_builtin |= builtin   == command_builtin;
+  result = ((*builtin) (words->next)); // #IMP 执行执行的语句，会调用不同的内置方法执行具体的命令，
+  //#IMP 如cd命令会执行cd.def中的cd_builtin方法，内置方法的文件都在builtins目录下
 
   /* This shouldn't happen, but in case `return' comes back instead of
      longjmp'ing, we need to unwind. */
@@ -4549,7 +4576,7 @@ execute_builtin (builtin, words, flags, subshell)
     }
 
   return (result);
-}
+} //execute_builtin
 
 static void
 maybe_restore_getopt_state (gs)
@@ -4960,6 +4987,13 @@ execute_subshell_builtin_or_function (words, redirects, builtin, var,
 
    If BUILTIN is exec_builtin, the redirections specified in REDIRECTS are
    not undone before this function returns. */
+/* #IMP 
+execute_builtin_or_function 方法有一个分支，分为执行内建命令和执行函数
+if (builtin)
+result = execute_builtin (builtin, words, flags, 0);
+else
+result = execute_function (var, words, flags, fds_to_close, 0, 0);
+*/
 static int
 execute_builtin_or_function (words, builtin, var, redirects,
 			     fds_to_close, flags)
@@ -5014,7 +5048,7 @@ execute_builtin_or_function (words, builtin, var, redirects,
   redirection_undo_list = (REDIRECT *)NULL;
 
   if (builtin)
-    result = execute_builtin (builtin, words, flags, 0);
+    result = execute_builtin (builtin, words, flags, 0); //
   else
     result = execute_function (var, words, flags, fds_to_close, 0, 0);
 
@@ -5067,7 +5101,7 @@ execute_builtin_or_function (words, builtin, var, redirects,
 #endif
 
   return (result);
-}
+} // execute_builtin_or_function
 
 void
 setup_async_signals ()

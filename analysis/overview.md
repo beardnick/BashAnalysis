@@ -44,3 +44,13 @@
           char *here_doc_eof;		/* The word that appeared in <<foo. */
         } REDIRECT;
         ```
+
+
+*** execute_com.c ***
++ execute_command() 外部调用接口
++ execute_command_internal() 内部调用接口
+  - execute_builtin() 执行内部命令
+  - execute_disk_command() 执行外部命令
+    - 调用jobs.c / nojobs.c make_child 来fork新进程
+
++ builtin = find_shell_builtin (this_command_name) 找到要执行的命令在哪里

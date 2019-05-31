@@ -185,7 +185,7 @@ typedef struct element {
 #define CMD_LASTPIPE	    0x2000
 #define CMD_STDPATH	    0x4000	/* use standard path for command lookup */
 
-/* What a command looks like. */
+/* What a command looks like. */ // #IMP 定义bash命令结构
 typedef struct command {
   enum command_type type;	/* FOR CASE WHILE IF CONNECTION or SIMPLE. */
   int flags;			/* Flags controlling execution environment. */
