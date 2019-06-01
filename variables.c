@@ -125,6 +125,7 @@ extern int perform_hostname_completion;
    scope, or that came from the environment. */
 VAR_CONTEXT *global_variables = (VAR_CONTEXT *)NULL;
 
+// #IMP 2019-06-01 变量和函数的列表
 /* The current list of shell variables, including function scopes */
 VAR_CONTEXT *shell_variables = (VAR_CONTEXT *)NULL;
 
@@ -150,6 +151,7 @@ HASH_TABLE *temporary_env = (HASH_TABLE *)NULL;
    into the temporary environment. */
 int tempenv_assign_error;
 
+// #NOTE 2019-06-01 $符号的语法定义
 /* Some funky variables which are known about specially.  Here is where
    "$*", "$1", and all the cruft is kept. */
 char *dollar_vars[10];
@@ -308,6 +310,7 @@ static void push_exported_var __P((PTR_T));
 
 static inline int find_special_var __P((const char *));
 
+// #NOTE 2019-06-01 建立环境变量表
 static void
 create_variable_tables ()
 {
@@ -362,6 +365,7 @@ initialize_shell_variables (env, privmode)
 
       temp_var = (SHELL_VAR *)NULL;
 
+// #NOTE 2019-06-01 载入函数
 #if defined (FUNCTION_IMPORT)
       /* If exported function, define it now.  Don't import functions from
 	 the environment in privileged mode. */
@@ -1880,6 +1884,7 @@ find_variable_internal (name, flags)
 	{
 	  /* essentially var_lookup expanded inline so we can check for
 	     att_invisible */
+      // #IMP 2019-06-01 shell_variables存了当前shell的变量列表，是一个哈希表
 	  for (vc = shell_variables; vc; vc = vc->down)
 	    {
 	      var = hash_lookup (name, vc->table);
@@ -2201,6 +2206,7 @@ find_shell_variable (name)
   return (var->dynamic_value ? (*(var->dynamic_value)) (var) : var);
 }
 
+// #IMP 2019-06-01 查找环境变量
 /* Look up the variable entry named NAME.  Returns the entry or NULL. */
 SHELL_VAR *
 find_variable (name)
@@ -2211,6 +2217,7 @@ find_variable (name)
 
   last_table_searched = 0;
   flags = 0;
+  // #NOTE 2019-06-01 判断是在运行环境中声明的还是内置的变量
   if (expanding_redir == 0 && (assigning_in_environment || executing_builtin))
     flags |= FV_FORCETEMPENV;
   v = find_variable_internal (name, flags);

@@ -344,6 +344,8 @@ static REDIRECTEE redir;
    in the case that they are preceded by a list_terminator.  Members
    of the second group are for [[...]] commands.  Members of the
    third group are recognized only under special circumstances. */
+
+	 /* #IMP 2019-06-01 bash中的关键字声明 */
 %token IF THEN ELSE ELIF FI CASE ESAC FOR SELECT WHILE UNTIL DO DONE FUNCTION COPROC
 %token COND_START COND_END COND_ERROR
 %token IN BANG TIME TIMEOPT TIMEIGN
@@ -403,6 +405,7 @@ inputunit:	simple_list simple_list_terminator
 			    parser_state |= PST_EOFTOKEN;
 			  YYACCEPT;
 			}
+			/* #NOTE 2019-06-01 error这些在 | 后面的都是编译原理中的非终结符，后面是非终结符对应的一些动作 */
 	|	error '\n'
 			{
 			  /* Error during parsing.  Return NULL command. */
@@ -434,6 +437,7 @@ word_list:	WORD
 			{ $$ = make_word_list ($2, $1); }
 	;
 
+/* #IMP 2019-06-01 重定向的语法声明 */
 redirection:	'>' WORD
 			{
 			  source.dest = 1;
@@ -448,6 +452,7 @@ redirection:	'>' WORD
 			}
 	|	NUMBER '>' WORD
 			{
+				/* #NOTE 2019-06-01 $1指的是NUMBER，$3指的是WORD */
 			  source.dest = $1;
 			  redir.filename = $3;
 			  $$ = make_redirection (source, r_output_direction, redir, 0);

@@ -30,9 +30,7 @@
 
 #include "bashtypes.h"
 
-/*
- * 在没有定义MINIX文件系统但是定义了HAVE_SYS_FILE_H宏的时候引入系统中的文件数据结构
- */
+// #NOTE 2019-05-31 在没有定义MINIX文件系统但是定义了HAVE_SYS_FILE_H宏的时候引入系统中的文件数据结构
 #if !defined (_MINIX) && defined (HAVE_SYS_FILE_H)
 #  include <sys/file.h>
 #endif
@@ -255,6 +253,7 @@ static const struct {
   int *int_value;
   char **char_value;
 } long_args[] = {
+  // #NOTE 2019-05-31 使用预定义语句来确定long_args[]的内容
   { "debug", Int, &debugging, (char **)0x0 },
 #if defined (DEBUGGER)
   { "debugger", Int, &debugging_mode, (char **)0x0 },
@@ -325,6 +324,7 @@ static void add_shopt_to_alist __P((char *, int));
 static void run_shopt_alist __P((void));
 
 static void execute_env_file __P((char *));
+// #NOTE 2019-06-01 
 static void run_startup_files __P((void));//判断是不是由sshd启动的bash
 static int open_shell_script __P((char *));
 static void set_bash_input __P((void));
@@ -376,7 +376,7 @@ main (argc, argv)
 #else /* !NO_MAIN_ENV_ARG */
 int
 main (argc, argv, env)
-     int argc;//整型的argc是存放程序运行时发送个main函数的参数个数。
+     int argc; // #NOTE 2019-05-31 整型的argc是存放程序运行时发送个main函数的参数个数。
      /*
       * argv存放指向字符串参数的指针数组。
         argv[0]-----指向程序运行的全路径
@@ -392,7 +392,8 @@ main (argc, argv, env)
 #if defined (RESTRICTED_SHELL)
   int saverst;
 #endif
-  //volatile的变量是说这变量可能会被意想不到地改变，这样，编译器就不会去假设这个变量的值了。
+  // #NOTE 2019-05-31 volatile的变量是说这变量可能会被意想不到地改变，这样，编译器就不会去假设这个变量的值了。
+  // volatile 一般用在多线程共享的变量上。volatile可以保证变量在并发修改过程中的可见性，是一种轻量级的同步机制
   volatile int locally_skip_execution;
   volatile int arg_index, top_level_arg_index;
 #ifdef __OPENNT
@@ -434,11 +435,10 @@ main (argc, argv, env)
   set_default_locale ();
 
   running_setuid = uidget ();
-/*
- * bash的posix模式
-  当bash以posix模式启动时，就像使用--posix选项一样，它的启动文件遵循POSIX标准。
-  这种模式下，交互式shell展开ENV变量的并读取和执行以ENV变量值为文件名的配置文件。不会读取其他启动文件。
- */
+// #NOTE 2019-05-31
+//  bash的posix模式
+//   当bash以posix模式启动时，就像使用--posix选项一样，它的启动文件遵循POSIX标准。
+//   这种模式下，交互式shell展开ENV变量的并读取和执行以ENV变量值为文件名的配置文件。不会读取其他启动文件。
   if (getenv ("POSIXLY_CORRECT") || getenv ("POSIX_PEDANTIC"))//POSIXLY_CORRECT如果被设置，bash以POSIX模式启动
     posixly_correct = 1;
 
@@ -457,7 +457,7 @@ main (argc, argv, env)
   shell_reinitialized = 0;
 
   /* Initialize `local' variables for all `invocations' of main (). */
-  //为main函数中调用的所有变量初始化本地变量
+// #NOTE 2019-05-31  为main函数中调用的所有变量初始化本地变量
   arg_index = 1;
   if (arg_index > argc)
     arg_index = argc;
@@ -472,12 +472,15 @@ main (argc, argv, env)
      from startup files on System V. */
   login_shell = make_login_shell = 0;
 
+// #TODO 2019-06-01 什么是vanilla state
   /* If this shell has already been run, then reinitialize it to a
      vanilla state. */
   if (shell_initialized || shell_name)
     {
       /* Make sure that we do not infinitely recurse as a login shell. */
-      //保证不把递归作为登录shell
+    // #NOTE 2019-05-31  保证不把递归作为登录shell
+    // #NOTE 2019-05-31 保证不陷入登录shell的死循环
+    // 即登录之后就不再打开登录shell了
       if (*shell_name == '-')
 	shell_name++;
 
@@ -495,9 +498,9 @@ main (argc, argv, env)
   /* Find full word arguments first. */
   arg_index = parse_long_options (argv, arg_index, argc);
 
-  if (want_initial_help)//初始化的帮助
+  if (want_initial_help)// #NOTE 2019-05-31 初始化的帮助
     {
-      show_shell_usage (stdout, 1);//输出shell基本用法
+      show_shell_usage (stdout, 1);// #NOTE 2019-05-31 输出shell基本用法
       exit (EXECUTION_SUCCESS);
     }
 
@@ -510,13 +513,13 @@ main (argc, argv, env)
   echo_input_at_read = verbose_flag;	/* --verbose given */
 
   /* All done with full word options; do standard shell option parsing.*/
-  //全部使用完整的选项完成；执行标准shell选项解析
+ // #NOTE 2019-05-31 全部使用完整的选项完成；执行标准shell选项解析
   this_command_name = shell_name;	/* for error reporting */
   arg_index = parse_shell_options (argv, arg_index, argc);
 
   /* If user supplied the "--login" (or -l) flag, then set and invert
      LOGIN_SHELL. */
-  //以登录方式进入shell
+ // #IMP 2019-05-31 以登录方式进入shell
   if (make_login_shell)
     {
       login_shell++;
@@ -557,7 +560,7 @@ main (argc, argv, env)
 	standard input is a terminal
 	standard error is a terminal
      Refer to Posix.2, the description of the `sh' utility. */
-  //交互shell
+ // #IMP 2019-05-31 交互shell
 
   if (forced_interactive ||		/* -i flag */
       (!command_execution_string &&	/* No -c command and ... */
@@ -579,7 +582,7 @@ main (argc, argv, env)
    * also systems that open persistent FDs to other agents or files as part
    * of process startup; these need to be set to be close-on-exec.
    */
-  //TODO
+  // #TODO 2019-05-31 这里是什么意思？
   if (login_shell && interactive_shell)
     {
       for (i = 3; i < 20; i++)
@@ -615,7 +618,7 @@ main (argc, argv, env)
    * a now-obsolete command that sets neither EMACS nor INSIDE_EMACS:
    * M-x terminal -> TERM='emacs-em7955' (line editing)
    */
-  //
+  // #NOTE 2019-06-01 非交互式shell
   if (interactive_shell)
     {
       char *term, *emacs, *inside_emacs;;
@@ -695,6 +698,7 @@ main (argc, argv, env)
       interactive = 1;
     }
 
+// #NOTE 2019-06-01 打开严格模式，只要指令出错就退出
 #if defined (RESTRICTED_SHELL)
   /* Set restricted_shell based on whether the basename of $0 indicates that
      the shell should be restricted or if the `-r' option was supplied at
@@ -747,9 +751,11 @@ main (argc, argv, env)
 
   if (command_execution_string)
     {
+      // #NOTE 2019-06-01 参数绑定
       arg_index = bind_args (argv, arg_index, argc, 0);
       startup_state = 2;
 
+// #NOTE 2019-06-01 打开调试
       if (debugging_mode)
 	start_debugger ();
 
@@ -822,11 +828,13 @@ main (argc, argv, env)
 
   shell_initialized = 1;
 
+// #IMP 2019-06-01 开始循环读取指令
   /* Read commands until exit condition. */
   reader_loop ();
   exit_shell (last_command_exit_value);
 }
 
+// #NOTE 2019-06-01 解析长选项，比如像--login这样的选项
 static int
 parse_long_options (argv, arg_start, arg_end)
      char **argv;
@@ -883,6 +891,7 @@ parse_long_options (argv, arg_start, arg_end)
 }
 
 static int
+// #NOTE 2019-05-31 解析shell选项
 parse_shell_options (argv, arg_start, arg_end)//理解选择的shell操作
      char **argv;
      int arg_start, arg_end;
@@ -977,6 +986,7 @@ void
 exit_shell (s)
      int s;
 {
+  // #NOTE 2019-05-31 刷新标准输出和标准错误
     /*
      * stdout 标准输出设备，对应终端屏幕。是一个定义在<stdio.h>的宏，它展开到一个 FILE*类型的表达式（不一定是常量），
        这个表达式指向一个与标准输出流（standard output stream）相关连的 FILE 对象。
@@ -1107,6 +1117,7 @@ execute_env_file (env_file)
     }
 }
 
+// #IMP 2019-06-01 读取bash配置文件
 static void
 run_startup_files ()
 {
@@ -1126,6 +1137,7 @@ run_startup_files ()
       run_by_ssh = 0;
 #endif
 
+// #NOTE 2019-06-01 读取.bashrc配置文件
       /* If we were run by sshd or we think we were run by rshd, execute
 	 ~/.bashrc if we are a top-level shell. */
       if ((run_by_ssh || isnetconn (fileno (stdin))) && shell_level < 2)
@@ -1958,6 +1970,7 @@ shell_reinitialize ()
   shell_reinitialized = 1;
 }
 
+// #NOTE 2019-06-01
 /*
  * 展示给用户的shell用法的界面
  */

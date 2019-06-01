@@ -30,6 +30,7 @@
 
 #include "conftypes.h"
 
+// #IMP 2019-06-01 存储变量列表的数据结构，可以看出来是使用哈希表存储的
 /* A variable context. */
 typedef struct var_context {
   char *name;		/* empty or NULL means global context */
@@ -147,6 +148,7 @@ typedef struct _vlist {
 #define capcase_p(var)		((((var)->attributes) & (att_capcase)))
 #define nameref_p(var)		((((var)->attributes) & (att_nameref)))
 
+// #NOTE 2019-06-01 判断变量的可见性
 #define invisible_p(var)	((((var)->attributes) & (att_invisible)))
 #define non_unsettable_p(var)	((((var)->attributes) & (att_nounset)))
 #define noassign_p(var)		((((var)->attributes) & (att_noassign)))

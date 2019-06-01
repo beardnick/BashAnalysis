@@ -64,6 +64,8 @@ extern sigset_t top_level_mask;
 static void send_pwd_to_eterm __P((void));
 static sighandler alrm_catcher __P((int));
 
+// #IMP 2019-06-01 非常重要的循环读取指令的循环
+
 /* Read and execute commands until EOF is reached.  This assumes that
    the input source has already been initialized. */
 int
@@ -72,16 +74,19 @@ reader_loop ()
   int our_indirection_level;
   COMMAND * volatile current_command;
 
+// #TODO 2019-06-01 把它转换为void*的宏？
   USE_VAR(current_command);
 
   current_command = (COMMAND *)NULL;
 
   our_indirection_level = ++indirection_level;
 
+// #NOTE 2019-06-01 没有到达EOF（end of file文件结尾）时一直读，就是没有读到指令结尾时就一直读
   while (EOF_Reached == 0)
     {
       int code;
 
+// #NOTE 2019-06-01 处理bash信号
       code = setjmp_nosigs (top_level);
 
 #if defined (PROCESS_SUBSTITUTION)
@@ -97,9 +102,11 @@ reader_loop ()
 	{
 	  indirection_level = our_indirection_level;
 
+// #NOTE 2019-06-01 根据信号来确定bash的操作
 	  switch (code)
 	    {
 	      /* Some kind of throw to top_level has occurred. */
+        // #NOTE 2019-06-01 退出shell
 	    case FORCE_EOF:
 	    case ERREXIT:
 	    case EXITPROG:
@@ -107,6 +114,7 @@ reader_loop ()
 	      if (exit_immediately_on_error)
 		variable_context = 0;	/* not in a function */
 	      EOF_Reached = EOF;
+        // #NOTE 2019-06-01 跳转到exec_done的标号处
 	      goto exec_done;
 
 	    case DISCARD:
@@ -121,6 +129,7 @@ reader_loop ()
 		  EOF_Reached = EOF;
 		  goto exec_done;
 		}
+    // #NOTE 2019-06-01 丢弃当前指令
 	      /* Obstack free command elements, etc. */
 	      if (current_command)
 		{
@@ -133,6 +142,7 @@ reader_loop ()
 	      break;
 
 	    default:
+      // #NOTE 2019-06-01 打印错误信息
 	      command_error ("reader_loop", CMDERR_BADJUMP, code, 0);
 	    }
 	}
@@ -164,6 +174,7 @@ reader_loop ()
 
 	      /* If the shell is interactive, expand and display $PS0 after reading a
 		 command (possibly a list or pipeline) and before executing it. */
+     // #NOTE 2019-06-01 读取完指令后就马上展开提示(提示就是你指令前面的一些字符)
 	      if (interactive && ps0_prompt)
 		{
 		  char *ps0_string;
@@ -177,12 +188,15 @@ reader_loop ()
 		  free (ps0_string);
 		}
 
+// #IMP 2019-06-01 开始执行指令
 	      execute_command (current_command);
 
 // #NOTE 2019-05-18 结束标号，指令执行完成
 	    exec_done:
 	      QUIT;
 
+// #NOTE 2019-06-01 释放当前指令的空间
+// 每条指令的长短不一样，无法复用指令空间，只能每次重新申请
 	      if (current_command)
 		{
 		  dispose_command (current_command);
@@ -203,6 +217,7 @@ reader_loop ()
   return (last_command_exit_value);
 }
 
+// #NOTE 2019-06-01 捕获警报
 static sighandler
 alrm_catcher(i)
      int i;
@@ -229,6 +244,7 @@ send_pwd_to_eterm ()
   free (f);
 }
 
+// #NOTE 2019-06-01 解析bash指令语法
 /* Call the YACC-generated parser and return the status of the parse.
    Input is read from the current input stream (bash_input).  yyparse
    leaves the parsed command in the global variable GLOBAL_COMMAND.
@@ -239,6 +255,7 @@ parse_command ()
   int r;
   char *command_to_execute;
 
+// #NOTE 2019-06-01 heredoc是指写在脚本里面的输入数据
   need_here_doc = 0;
   run_pending_traps ();
 
@@ -255,6 +272,7 @@ parse_command ()
 	execute_variable_command (command_to_execute, "PROMPT_COMMAND");
 
       if (running_under_emacs == 2)
+      // #TODO 2019-06-01 Yuck是呸的意思，这是什么鬼，程序员爆粗口？
 	send_pwd_to_eterm ();	/* Yuck */
     }
 

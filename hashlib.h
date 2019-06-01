@@ -40,6 +40,7 @@ typedef struct bucket_contents {
 } BUCKET_CONTENTS;
 
 typedef struct hash_table {
+  // #NOTE 2019-06-01 哈希桶，存放变量的线性数据结构
   BUCKET_CONTENTS **bucket_array;	/* Where the data is kept. */
   int nbuckets;			/* How many buckets does this table have. */
   int nentries;			/* How many entries does this table have. */
