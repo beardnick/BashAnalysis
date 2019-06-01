@@ -10,14 +10,19 @@
 COMMAND *global_command = (COMMAND *)NULL; //#IMP 获取命令的结构体
 ２．执行命令：execute_cmd.c 中　execute_command (command) 根据解释的command结构体中命令类型来调用函数执行
 
-+ main.c 函数入口在：　shell.c 中
-  - shell.c 中首先初始化：　shell_initialize ()
++ 命令执行步骤：
 
-
-
-
-
-
+1. shell的初始化
+    + main.c 函数入口在：　shell.c 中
+      - shell.c 中首先初始化：　shell_initialize ()
+      - 读取需要的配置文件：　run_startup_files ()
+2. 初始化完成之后进入　eval.c reader_loop ()　循环读取命令
+    - 通过　read_command ()　来调用　parse_command() 分析命令，返回命令的结构体GLOBAL_COMMAND后赋值给   current_command然后交给execute_command执行
+    - **parse_command() 后面调用的函数是编译原理中语法分析文法分析等** parse_command()会调用yy.tab.c()和yyparse()
+**获取命令的过程看起来是这样的：**
+main()-->read_loop()-->read_command()-->parse_command()-->yyparse()-->yylex()-->read_token()-->read_token_word()
+                            |                                |                      |                  |
+                          current_command<-------------global_command<------------token<--------------word
 
 
 
