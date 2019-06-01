@@ -1,54 +1,28 @@
-<!-- 
-约定：  
-1，所有函数名称均用斜体表示 *function*
-2，对一个函数的说明包括： 所在位置 location： ； 功能 function： 参数说明：args： ；
--->
-# Bash分析总览
-
-+ ***main函数入口***
-  1. location: *shell.c*
-
--------------------------------
-+  ***Shell Command Structs***
-  1. **location**： *command.h*
-  2. **function**: 
-      +  这个函数定义的是**bash**所使用命令中所有结构定义，包括内部结构和显示出来的命令部分
-      +  定义了常量， 字word_dedc，字的链接表word_list， 重定向redirect
-      +  **数据结构**
-         +  *command*：定义了**bash**所能执行的命令的形式结构，包括： for, case, while, if, connection, simple, function_def, group, select, arith, cond, arith_for, subshell, coproc， 这些结构在command中是以共用体union组织的; *command.h*后面部分就是对这些命令结构的定义, 
-        - 例如对 **for** 的定义
-        ```c
-        /* FOR command. */
-        typedef struct for_com {
-          int flags;		/* See description of CMD flags. */
-          int line;		/* line number the `for' keyword appears on */
-          WORD_DESC *name;	/* The variable name to get mapped over. */
-          WORD_LIST *map_list;	/* The things to map over.  This is never NULL. */
-          COMMAND *action;	/* The action to execute.During execution, NAME is bound to successive members of MAP_LIST. */
-        } FOR_COM; 
-        ```
-        - 对重定向 **redirect**的定义：
-        ```c
-        typedef union {
-          int dest;			/* Place to redirect REDIRECTOR to, or ... */
-          WORD_DESC *filename;		/* filename to redirect to. */
-        } REDIRECTEE;
-
-        typedef struct redirect {
-          struct redirect *next;	/* Next element, or NULL. */
-          REDIRECTEE redirector;	/* Descriptor or varname to be redirected. */
-          int rflags;			/* Private flags for this redirection */
-          int flags;			/* Flag value for `open'. */
-          enum r_instruction  instruction; /* What to do with the information. */
-          REDIRECTEE redirectee;	/* File descriptor or filename */
-          char *here_doc_eof;		/* The word that appeared in <<foo. */
-        } REDIRECT;
-        ```
-
+# execute_cmd.c 函数内部调用结构
 
 *** execute_com.c ***
-+ execute_command() 外部调用接口
-+ execute_command_internal() 内部调用接口
++ execute_command (command)
+    * 这个函数是由内部命令来调用，函数内部又调用**execute_command_internal (command, 0, NO_PIPE, NO_PIPE, bitmap)**
++ execute_command_internal() 内部调用接口　
+
+```C
+// execute_command_internal内部流程：
+// 该函数是shell源码中执行命令的实际操作函数。他需要对作为操作参数传入的具体命令结构的value成员进行分析，并针对不同的value类型，
+// 再调用具体类型的命令执行函数进行具体命令的解释执行工作。
+
+// 具体来说：如果value是simple，则直接调用execute_simple_command函数进行执行，
+// execute_simple_command再根据命令是内部命令或磁盘外部命令分别调用execute_builtin和execute_disk_command来执行,
+// 其中，execute_disk_command在执行外部命令的时候调用make_child函数fork子进程执行外部命令。
+
+// 如果value是其他类型，则调用对应类型的函数进行分支控制。
+// 举例来说，如果是value是for_commmand,即这是一个for循环控制结构命令，则调用execute_for_command函数。
+// 在该函数中，将枚举每一个操作域中的元素，对其再次调用execute_command函数进行分析。
+// 即execute_for_command这一类函数实现的是一个命令的展开以及流程控制以及递归调用execute_command的功能。
+```
+会根据command的类型value执行函数,如果是simple类型，调用execute_simple_command()
   - execute_builtin() 执行内部命令
   - execute_disk_command() 执行外部命令
     - 调用jobs.c / nojobs.c make_child 来fork新进程
+
++ builtin = find_shell_builtin (this_command_name) 找到要执行的命令在哪里
+
