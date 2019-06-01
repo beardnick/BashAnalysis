@@ -124,7 +124,7 @@ extern char *this_command_name;
    call shell_reinitialize () if you need to start afresh. */
 int shell_initialized = 0;
 
-COMMAND *global_command = (COMMAND *)NULL;
+COMMAND *global_command = (COMMAND *)NULL; //#IMP 获取命令的
 
 /* Information about the current user. */
 struct user_info current_user =
@@ -1118,6 +1118,7 @@ execute_env_file (env_file)
 }
 
 // #IMP 2019-06-01 读取bash配置文件
+// #IMP 执行命令前先读取配置文件
 static void
 run_startup_files ()
 {
@@ -1839,6 +1840,7 @@ get_current_user_info ()
 
 /* Do whatever is necessary to initialize the shell.
    Put new initializations in here. */
+// #IMP ｓｈｅｌｌ初始化
 static void
 shell_initialize ()
 {

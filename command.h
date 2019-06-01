@@ -156,6 +156,7 @@ typedef struct redirect {
   REDIRECTEE redirector;	/* Descriptor or varname to be redirected. */
   int rflags;			/* Private flags for this redirection */
   int flags;			/* Flag value for `open'. */
+  // #IMP 文件打开方式：readonly, rdwr, ex
   enum r_instruction  instruction; /* What to do with the information. */
   REDIRECTEE redirectee;	/* File descriptor or filename */
   char *here_doc_eof;		/* The word that appeared in <<foo. */
@@ -187,6 +188,7 @@ typedef struct element {
 
 /* What a command looks like. */
 //#NOTE 19-05-18 指令的数据结构
+/* What a command looks like. */ // #IMP 定义bash命令结构
 typedef struct command {
   enum command_type type;	/* FOR CASE WHILE IF CONNECTION or SIMPLE. */
   int flags;			/* Flags controlling execution environment. */
@@ -215,7 +217,9 @@ typedef struct command {
 #endif
     struct subshell_com *Subshell;
     struct coproc_com *Coproc;
-  } value;
+  } value; 
+  //#IMP 指令的类型值，shell根据不同value类型执行不同种类的指令，为simple时又会判断时候是builtin指令来调用
+  // execute_command 和　execute_internal_command 
 } COMMAND;
 
 /* Structure used to represent the CONNECTION type. */
