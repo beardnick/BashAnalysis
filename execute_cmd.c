@@ -127,6 +127,7 @@ extern char *glob_argv_flags;
 
 extern int job_control;	/* XXX */
 
+ // #NOTE 2019-06-01 之前的C编译器不支持函数的原型定义，于是发明了__P来解决问题，现在基本上用不上了
 extern int close __P((int));
 
 /* Static functions defined and used in this file. */
@@ -780,6 +781,8 @@ execute_command_internal (command, asynchronous, pipe_in, pipe_out,
 
   QUIT;
 
+// #IMP 2019-06-01 一个超长的switch，用于执行不同类型的指令
+//比如for，while，select，switch指令
   switch (command->type)
     {
     case cm_simple:
@@ -4527,6 +4530,7 @@ execute_builtin (builtin, words, flags, subshell)
 
   executing_builtin++;
   executing_command_builtin |= builtin == command_builtin;
+  // #NOTE 2019-06-01 执行builtin指令，builtin其实就是一个函数指针
   result = ((*builtin) (words->next));
 
   /* This shouldn't happen, but in case `return' comes back instead of
@@ -5155,6 +5159,7 @@ execute_disk_command (words, redirects, command_line, pipe_in, pipe_out,
     }
 #endif /* RESTRICTED_SHELL */
 
+// #IMP 2019-06-01 寻找磁盘上的外部命令
   command = search_for_command (pathname, CMDSRCH_HASH|(stdpath ? CMDSRCH_STDPATH : 0));
 
   if (command)

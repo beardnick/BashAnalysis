@@ -222,6 +222,7 @@ typedef int sh_wassign_func_t __P((WORD_DESC *, int));
 typedef int sh_load_func_t __P((char *));
 typedef void sh_unload_func_t __P((char *));
 
+// #NOTE 2019-06-01 定义返回值为int，参数为WORD_LIST* 的函数指针为sh_builtin_func_t
 typedef int sh_builtin_func_t __P((WORD_LIST *)); /* sh_wlist_func_t */
 
 #endif /* SH_FUNCTION_TYPEDEF */

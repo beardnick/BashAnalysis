@@ -347,6 +347,7 @@ search_for_command (pathname, flags)
 
   /* If PATH is in the temporary environment for this command, don't use the
      hash table to search for the full pathname. */
+     // #NOTE 2019-06-01 在PATH环境变量中找
   path = find_variable_tempenv ("PATH");
   temp_path = path && tempvar_p (path);
 
@@ -373,6 +374,7 @@ search_for_command (pathname, flags)
 
   if (hashed_file)
     command = hashed_file;
+    // #NOTE 2019-06-01 含有/的命令都是绝对命令，不需要查找PATH，直接调用
   else if (absolute_program (pathname))
     /* A command containing a slash is not looked up in PATH or saved in
        the hash table. */
@@ -386,6 +388,7 @@ search_for_command (pathname, flags)
       else
 	pathlist = 0;
 
+// #NOTE 2019-06-01 查找指令
       command = find_user_command_in_path (pathname, pathlist, FS_EXEC_PREFERRED|FS_NODIRS);
 
       if (command && hashing_enabled && temp_path == 0 && (flags & CMDSRCH_HASH))
@@ -400,6 +403,7 @@ search_for_command (pathname, flags)
 	        phash_insert ((char *)pathname, command, dot_found_in_search, 1);
 	    }
 	  else
+    // #NOTE 2019-06-01 将搜索到的指令插入哈希表中，方便下一次查找
 	    phash_insert ((char *)pathname, command, dot_found_in_search, 1);
 	}
 
