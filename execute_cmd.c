@@ -400,6 +400,7 @@ executing_line_number ()
 */
 
 /* #IMP 内部命令调用*/
+/* 在通过 eval.c 中　reader_loop 解析得到 current_command 后调用　execute_command()*/
 int
 execute_command (command)
      COMMAND *command;
@@ -423,8 +424,8 @@ execute_command (command)
      returns. */
   if (variable_context == 0)
     unlink_fifo_list ();
-#endif /* PROCESS_SUBSTITUTION */
-
+#endif /* PROCESS_SUBSTITUTION */ 
+// hd 
   QUIT;
   return (result);
 }
@@ -557,7 +558,8 @@ async_redirect_stdin ()
    EXECUTION_SUCCESS or EXECUTION_FAILURE are the only possible
    return values.  Executing a command with nothing in it returns
    EXECUTION_SUCCESS. */
-/*
+
+/* #IMP 
 // execute_command_internal内部流程：
 // 该函数是shell源码中执行命令的实际操作函数。他需要对作为操作参数传入的具体命令结构的value成员进行分析，并针对不同的value类型，
 // 再调用具体类型的命令执行函数进行具体命令的解释执行工作。
@@ -582,7 +584,7 @@ execute_command_internal (command, asynchronous, pipe_in, pipe_out,
      struct fd_bitmap *fds_to_close;
 {
   int exec_result, user_subshell, invert, ignore_return, was_error_trap;
-  REDIRECT *my_undo_list, *exec_undo_list;
+  REDIRECT *my_undo_list, *exec_undo_list;  
   char *tcmd;
   volatile int last_pid;
   volatile int save_line_number;
@@ -617,7 +619,8 @@ execute_command_internal (command, asynchronous, pipe_in, pipe_out,
   /* If a command was being explicitly run in a subshell, or if it is
      a shell control-structure, and it has a pipe, then we do the command
      in a subshell. */
-  if (command->type == cm_subshell && (command->flags & CMD_NO_FORK))
+  if (command->type == cm_subshell && (command->flags & CMD_NO_FORK)) // #IMP 根据　eval.c　中　reader_loop 传递过来的　current_command 中ｔｙｐｅ类型的不同
+  // 调用不同函数来处理不同type的命令
     return (execute_in_subshell (command, asynchronous, pipe_in, pipe_out, fds_to_close));
 
 #if defined (COPROCESS_SUPPORT)
@@ -1454,6 +1457,7 @@ time_command (command, asynchronous, pipe_in, pipe_out, fds_to_close)
 /* Execute a command that's supposed to be in a subshell.  This must be
    called after make_child and we must be running in the child process.
    The caller will return or exit() immediately with the value this returns. */
+//　#IMP 在子进程中执行命令
 static int
 execute_in_subshell (command, asynchronous, pipe_in, pipe_out, fds_to_close)
      COMMAND *command;
@@ -2722,6 +2726,7 @@ execute_connection (command, asynchronous, pipe_in, pipe_out, fds_to_close)
 
 /* Execute a FOR command.  The syntax is: FOR word_desc IN word_list;
    DO command; DONE */
+// #IMP 
 static int
 execute_for_command (for_command)
      FOR_COM *for_command;
@@ -2871,7 +2876,7 @@ execute_for_command (for_command)
   dispose_words (releaser);
   discard_unwind_frame ("for");
   return (retval);
-}
+} //execute_for_command
 
 #if defined (ARITH_FOR_COMMAND)
 /* Execute an arithmetic for command.  The syntax is
@@ -4035,7 +4040,8 @@ is_dirname (pathname)
 /* The meaty part of all the executions.  We have to start hacking the
    real execution of commands here.  Fork a process, set things up,
    execute the command. */
-// #IMP execute_simple_command
+// #IMP execute_simple_command, 根据 command->type 调用不同函数处理，除execute_arith_command,execute_cond_command,都要
+//　递归调用 execute_command,　最终调用 execute_simple_command
 static int
 execute_simple_command (simple_command, pipe_in, pipe_out, async, fds_to_close)
      SIMPLE_COM *simple_command;
@@ -4432,7 +4438,7 @@ run_builtin:
   discard_unwind_frame ("simple-command");
   this_command_name = (char *)NULL;	/* points to freed memory now */
   return (result);
-}
+}//execute_simple_command
 
 /* Translate the special builtin exit statuses.  We don't really need a
    function for this; it's a placeholder for future work. */
@@ -4445,6 +4451,7 @@ builtin_status (result)
   switch (result)
     {
     case EX_USAGE:
+    
       r = EX_BADUSAGE;
       break;
     case EX_REDIRFAIL:
