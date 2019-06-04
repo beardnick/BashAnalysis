@@ -4235,12 +4235,12 @@ execute_simple_command (simple_command, pipe_in, pipe_out, async, fds_to_close)
 	 a special builtin. */
       if (posixly_correct)
 	{
-	  builtin = find_special_builtin (words->word->word);
+	  builtin = find_special_builtin (words->word->word); // #IMP 搜索命令时最先搜索特殊内建命令
 	  if (builtin)
 	    builtin_is_special = 1;
 	}
-      if (builtin == 0)
-	func = find_function (words->word->word);
+      if (builtin == 0) 
+	func = find_function (words->word->word); // #IMP 没有搜索到特殊内建命令就搜索当前环境中函数
     }
 
   /* In POSIX mode, assignment errors in the temporary environment cause a
@@ -4309,7 +4309,7 @@ execute_simple_command (simple_command, pipe_in, pipe_out, async, fds_to_close)
 run_builtin:
   /* Remember the name of this command globally. */
   this_command_name = words->word->word;
-
+_)
   QUIT;
 
   /* This command could be a shell builtin or a user-defined function.
@@ -4318,7 +4318,7 @@ run_builtin:
      have pipes, then fork a subshell in here.  Otherwise, just execute
      the command directly. */
   if (func == 0 && builtin == 0)
-    builtin = find_shell_builtin (this_command_name); /* #IMP 通过命令的名字找到要执行的命令在shell的那个地方*/
+    builtin = find_shell_builtin (this_command_name); // #IMP 当内建命令和当前环境中均没有搜索到目标命令，到当前shell的内建命令中搜索
 
   last_shell_builtin = this_shell_builtin;
   this_shell_builtin = builtin;
@@ -5002,13 +5002,14 @@ execute_subshell_builtin_or_function (words, redirects, builtin, var,
 
    If BUILTIN is exec_builtin, the redirections specified in REDIRECTS are
    not undone before this function returns. */
-/* #IMP 
-execute_builtin_or_function 方法有一个分支，分为执行内建命令和执行函数
+/* 
 if (builtin)
 result = execute_builtin (builtin, words, flags, 0);
 else
 result = execute_function (var, words, flags, fds_to_close, 0, 0);
 */
+// #IMP 当搜索命令执行结束在：special_builtin, function, shell_builtin其中任何一个得到目标命令，则执行下面函数
+// execute_builtin_or_function 方法有一个分支，分为执行内建命令和执行函数
 static int
 execute_builtin_or_function (words, builtin, var, redirects,
 			     fds_to_close, flags)
@@ -5068,7 +5069,7 @@ execute_builtin_or_function (words, builtin, var, redirects,
     result = execute_function (var, words, flags, fds_to_close, 0, 0);
 
   /* We do this before undoing the effects of any redirections. */
-  fflush (stdout);
+  fflush (stdout);　// #NOTE 重定向之前先保存当前标准输出
   fpurge (stdout);
   if (ferror (stdout))
     clearerr (stdout);  
@@ -5165,6 +5166,7 @@ setup_async_signals ()
 #  define NOTFOUND_HOOK "command_not_found_handle"
 #endif
 
+// #IMP　在搜索命令在三种命令中没找到目标命令，则执行下面函数到磁盘中找目标命令
 static int
 execute_disk_command (words, redirects, command_line, pipe_in, pipe_out,
 		      async, fds_to_close, cmdflags)

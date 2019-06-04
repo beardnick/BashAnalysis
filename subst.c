@@ -10202,7 +10202,7 @@ separate_out_assignments (tlist)
 /* Take the list of words in LIST and do the various substitutions.  Return
    a new list of words which is the expanded list, and without things like
    variable assignments. */
-
+// #IMP 当　execute_simple_command 中命令不需要在subshell中执行，则仅进行简单单词扩展操作
 WORD_LIST *
 expand_words (list)
      WORD_LIST *list;
@@ -10613,7 +10613,7 @@ shell_expand_word_list (tlist, eflags)
 }
 
 /* The workhorse for expand_words () and expand_words_no_vars ().
-   First arg is LIST, a WORD_LIST of words.
+   First arg is LIST, a WORD_LIST of words. // NOTE list参数是表示那些单词需要被扩展
    Second arg EFLAGS is a flags word controlling which expansions are
    performed.
 
@@ -10625,6 +10625,7 @@ shell_expand_word_list (tlist, eflags)
    Words with the W_NOGLOB bit set do not undergo pathname expansion; words
    with W_NOBRACE set do not undergo brace expansion (see
    brace_expand_word_list above). */
+// #IMP 对不需要在subshell中执行的命令进行简单单词扩展
 static WORD_LIST *
 expand_word_list_internal (list, eflags)
      WORD_LIST *list;
@@ -10745,4 +10746,4 @@ expand_word_list_internal (list, eflags)
     }
 
   return (new_list);
-}
+} //expand_word_list_internal

@@ -6,7 +6,7 @@
 # Bash分析总览
 
 ## 1.函数调用关系
-main()<shell.c>
+main()<shell.c>　
   |-shell_initialize() 初始化, run_start_files() 读取配置文件
   |-reader_loop() 读取命令,　位于　eval.c
   | |-parse_command() 分析命令,返回 current_command 形成　command
