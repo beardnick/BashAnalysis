@@ -66,6 +66,7 @@ static sighandler alrm_catcher __P((int));
 
 /* Read and execute commands until EOF is reached.  This assumes that
    the input source has already been initialized. */
+// #IMP 在shell初始化完成之后，循环读取命令直到ＥＯＦ
 int
 reader_loop ()
 {
@@ -232,6 +233,7 @@ send_pwd_to_eterm ()
    Input is read from the current input stream (bash_input).  yyparse
    leaves the parsed command in the global variable GLOBAL_COMMAND.
    This is where PROMPT_COMMAND is executed. */
+// #IMP read_command()来调用这个函数分析读取命令结构体
 int
 parse_command ()
 {
@@ -258,7 +260,7 @@ parse_command ()
     }
 
   current_command_line_count = 0;
-  r = yyparse ();
+  r = yyparse (); // #IMP 编译原理中语法分析得到命令的格式
 
   if (need_here_doc)
     gather_here_documents ();
@@ -269,6 +271,7 @@ parse_command ()
 /* Read and parse a command, returning the status of the parse.  The command
    is left in the globval variable GLOBAL_COMMAND for use by reader_loop.
    This is where the shell timeout code is executed. */
+// #IMP 读取命令的结构体，得到GLOBAL_COMMAND后赋值给current_command然后交给execute_command执行
 int
 read_command ()
 {

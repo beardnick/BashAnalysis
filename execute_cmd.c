@@ -18,12 +18,19 @@
    along with Bash.  If not, see <http://www.gnu.org/licenses/>.
 */
 /*
+
 * execute_builtin执行内部命令，execute_disk_command() 执行外部命令
 * 针对不同类型的命令（控制结构、函数、算术等），execute_command_internal()调用不同的函数来完成相应功能。
 * 其中execute_builtin()执行内部命令；execute_disk_command()执行外部文件。
 * execute_disk_command()通过调用jobs.c或nojobs.c中的make_child()来fork新进程执行。
 */
-
+/*
+execute_cmd.c/execute_cmd.h
+* 执行命令（COMMAND结构）。外部调用接口是execute_command()，内部通过execute_command_internal()执行命令。execute_command_internal()包含可选的管道重定向以及后台运行的参数。
+* 针对不同类型的命令（控制结构、函数、算术等），execute_command_internal()调用不同的函数来完成相应功能。
+* 其中execute_builtin()执行内部命令；execute_disk_command()执行外部文件。execute_disk_command()通过调用jobs.c或nojobs.c中的make_child()来fork新进程执行。
+* 本文件中维护了一个文件描述符的位图。
+* */
 #include "config.h"
 
 #if !defined (__GNUC__) && !defined (HAVE_ALLOCA_H) && defined (_AIX)
@@ -88,7 +95,7 @@ extern int errno;
 #endif
 
 #include "builtins/common.h"
-#include "builtins/builtext.h"	/* list of builtins */
+#include "builtins/builtext.h"	/* list of builtins */ // 内建函数列表
 
 #include "builtins/getopt.h"
 
@@ -110,7 +117,7 @@ extern int errno;
 #if defined (HAVE_MBSTR_H) && defined (HAVE_MBSCHR)
 #  include <mbstr.h>		/* mbschr */
 #endif
-
+/* #IMP extern 关键字可以在一个函数中引用此函数外或此函数所在外的文件的变量*/
 extern int dollar_dollar_pid;
 extern int posixly_correct;
 extern int expand_aliases;
@@ -131,7 +138,7 @@ extern time_t shell_start_time;
 extern char *glob_argv_flags;
 #endif
 
-extern int job_control;	/* XXX */
+extern int job_control;	/* XXX */ 
 
 extern int close __P((int));
 
@@ -140,7 +147,7 @@ static void close_pipes __P((int, int));
 static void do_piping __P((int, int));
 static void bind_lastarg __P((char *));
 static int shell_control_structure __P((enum command_type));
-static void cleanup_redirects __P((REDIRECT *));
+static void cleanup_redirects __P((REDIRECT *)); /* #NOTE 清除重定向*/
 
 #if defined (JOB_CONTROL)
 static int restore_signal_mask __P((sigset_t *));
@@ -362,6 +369,7 @@ close_fd_bitmap (fdbp)
 }
 
 /* Return the line number of the currently executing command. */
+// #NOTE 记录当前正在执行的指令行号，用于继续后面的指令
 int
 executing_line_number ()
 {
@@ -394,7 +402,12 @@ executing_line_number ()
 
    EXECUTION_SUCCESS or EXECUTION_FAILURE are the only possible
    return values.  Executing a command with nothing in it returns
-   EXECUTION_SUCCESS. */
+   EXECUTION_SUCCESS. 
+//# NOTE 这里可以解释为什么bash里面命令执行成功后什么显示也没有，默认“没有就是最好”
+*/
+
+/* #IMP 内部命令调用*/
+/* 在通过 eval.c 中　reader_loop 解析得到 current_command 后调用　execute_command()*/
 int
 execute_command (command)
      COMMAND *command;
@@ -418,13 +431,14 @@ execute_command (command)
      returns. */
   if (variable_context == 0)
     unlink_fifo_list ();
-#endif /* PROCESS_SUBSTITUTION */
-
+#endif /* PROCESS_SUBSTITUTION */ 
+// hd 
   QUIT;
   return (result);
 }
 
 /* Return 1 if TYPE is a shell control structure type. */
+// #NOTE　判断是否是控制语句，控制语句跳转到不同地方执行
 static int
 shell_control_structure (type)
      enum command_type type;
@@ -443,6 +457,7 @@ shell_control_structure (type)
 #if defined (COND_COMMAND)
     case cm_cond:
 #endif
+// #IMP shell 能执行的所有控制语句
     case cm_case:
     case cm_while:
     case cm_until:
@@ -500,6 +515,7 @@ restore_signal_mask (set)
 
 #ifdef DEBUG
 /* A debugging function that can be called from gdb, for instance. */
+// #NOTE 调试？？？
 void
 open_files ()
 {
@@ -518,13 +534,15 @@ open_files ()
 }
 #endif
 
+// #NOTE 对标准输入的处理
 static void
 async_redirect_stdin ()
 {
   int fd;
-
+// fd0 :standered input-keyboard
+// fd1: standered output-screen 
   fd = open ("/dev/null", O_RDONLY);
-  if (fd > 0)
+  if (fd > 0) 
     {
       dup2 (fd, 0);
       close (fd);
@@ -547,6 +565,23 @@ async_redirect_stdin ()
    EXECUTION_SUCCESS or EXECUTION_FAILURE are the only possible
    return values.  Executing a command with nothing in it returns
    EXECUTION_SUCCESS. */
+
+/* #IMP 
+// execute_command_internal内部流程：
+// 该函数是shell源码中执行命令的实际操作函数。他需要对作为操作参数传入的具体命令结构的value成员进行分析，并针对不同的value类型，
+// 再调用具体类型的命令执行函数进行具体命令的解释执行工作。
+
+// 具体来说：如果value是simple，则直接调用execute_simple_command函数进行执行，
+// execute_simple_command再根据命令是内部命令或磁盘外部命令分别调用execute_builtin和execute_disk_command来执行,
+// 其中，execute_disk_command在执行外部命令的时候调用make_child函数fork子进程执行外部命令。
+
+// 如果value是其他类型，则调用对应类型的函数进行分支控制。
+// 举例来说，如果是value是for_commmand,即这是一个for循环控制结构命令，则调用execute_for_command函数。
+// 在该函数中，将枚举每一个操作域中的元素，对其再次调用execute_command函数进行分析。
+// 即execute_for_command这一类函数实现的是一个命令的展开以及流程控制以及递归调用execute_command的功能。
+*/
+
+//#NOTE asynchronous: 异步的
 int
 execute_command_internal (command, asynchronous, pipe_in, pipe_out,
 			  fds_to_close)
@@ -556,7 +591,7 @@ execute_command_internal (command, asynchronous, pipe_in, pipe_out,
      struct fd_bitmap *fds_to_close;
 {
   int exec_result, user_subshell, invert, ignore_return, was_error_trap;
-  REDIRECT *my_undo_list, *exec_undo_list;
+  REDIRECT *my_undo_list, *exec_undo_list;  
   char *tcmd;
   volatile int last_pid;
   volatile int save_line_number;
@@ -567,7 +602,7 @@ execute_command_internal (command, asynchronous, pipe_in, pipe_out,
 
   if (breaking || continuing)
     return (last_command_exit_value);
-  if (command == 0 || read_but_dont_execute)
+  if (command == 0 || read_but_dont__execute)
     return (EXECUTION_SUCCESS);
 
   QUIT;
@@ -591,7 +626,8 @@ execute_command_internal (command, asynchronous, pipe_in, pipe_out,
   /* If a command was being explicitly run in a subshell, or if it is
      a shell control-structure, and it has a pipe, then we do the command
      in a subshell. */
-  if (command->type == cm_subshell && (command->flags & CMD_NO_FORK))
+  if (command->type == cm_subshell && (command->flags & CMD_NO_FORK)) // #IMP 根据　eval.c　中　reader_loop 传递过来的　current_command 中ｔｙｐｅ类型的不同
+  // 调用不同函数来处理不同type的命令
     return (execute_in_subshell (command, asynchronous, pipe_in, pipe_out, fds_to_close));
 
 #if defined (COPROCESS_SUPPORT)
@@ -1428,6 +1464,7 @@ time_command (command, asynchronous, pipe_in, pipe_out, fds_to_close)
 /* Execute a command that's supposed to be in a subshell.  This must be
    called after make_child and we must be running in the child process.
    The caller will return or exit() immediately with the value this returns. */
+//　#IMP 在子进程中执行命令
 static int
 execute_in_subshell (command, asynchronous, pipe_in, pipe_out, fds_to_close)
      COMMAND *command;
@@ -1554,7 +1591,7 @@ execute_in_subshell (command, asynchronous, pipe_in, pipe_out, fds_to_close)
      /dev/null for async commands in the subshell.  This adds more
      sh compatibility, but I'm not sure it's the right thing to do.
      Note that an input pipe to a compound command suffices to inhibit
-     the implicit /dev/null redirection for asynchronous commands
+      the implicit /dev/null redirection for asynchronous commands
      executed as part of that compound command. */
   if (user_subshell)
     {
@@ -2696,6 +2733,7 @@ execute_connection (command, asynchronous, pipe_in, pipe_out, fds_to_close)
 
 /* Execute a FOR command.  The syntax is: FOR word_desc IN word_list;
    DO command; DONE */
+// #IMP 
 static int
 execute_for_command (for_command)
      FOR_COM *for_command;
@@ -2845,7 +2883,7 @@ execute_for_command (for_command)
   dispose_words (releaser);
   discard_unwind_frame ("for");
   return (retval);
-}
+} //execute_for_command
 
 #if defined (ARITH_FOR_COMMAND)
 /* Execute an arithmetic for command.  The syntax is
@@ -4009,6 +4047,8 @@ is_dirname (pathname)
 /* The meaty part of all the executions.  We have to start hacking the
    real execution of commands here.  Fork a process, set things up,
    execute the command. */
+// #IMP execute_simple_command, 根据 command->type 调用不同函数处理，除execute_arith_command,execute_cond_command,都要
+//　递归调用 execute_command,　最终调用 execute_simple_command
 static int
 execute_simple_command (simple_command, pipe_in, pipe_out, async, fds_to_close)
      SIMPLE_COM *simple_command;
@@ -4202,12 +4242,12 @@ execute_simple_command (simple_command, pipe_in, pipe_out, async, fds_to_close)
 	 a special builtin. */
       if (posixly_correct)
 	{
-	  builtin = find_special_builtin (words->word->word);
+	  builtin = find_special_builtin (words->word->word); // #IMP 搜索命令时最先搜索特殊内建命令
 	  if (builtin)
 	    builtin_is_special = 1;
 	}
-      if (builtin == 0)
-	func = find_function (words->word->word);
+      if (builtin == 0) 
+	func = find_function (words->word->word); // #IMP 没有搜索到特殊内建命令就搜索当前环境中函数
     }
 
   /* In POSIX mode, assignment errors in the temporary environment cause a
@@ -4276,7 +4316,7 @@ execute_simple_command (simple_command, pipe_in, pipe_out, async, fds_to_close)
 run_builtin:
   /* Remember the name of this command globally. */
   this_command_name = words->word->word;
-
+_)
   QUIT;
 
   /* This command could be a shell builtin or a user-defined function.
@@ -4285,7 +4325,7 @@ run_builtin:
      have pipes, then fork a subshell in here.  Otherwise, just execute
      the command directly. */
   if (func == 0 && builtin == 0)
-    builtin = find_shell_builtin (this_command_name);
+    builtin = find_shell_builtin (this_command_name); // #IMP 当内建命令和当前环境中均没有搜索到目标命令，到当前shell的内建命令中搜索
 
   last_shell_builtin = this_shell_builtin;
   this_shell_builtin = builtin;
@@ -4405,7 +4445,7 @@ run_builtin:
   discard_unwind_frame ("simple-command");
   this_command_name = (char *)NULL;	/* points to freed memory now */
   return (result);
-}
+}//execute_simple_command
 
 /* Translate the special builtin exit statuses.  We don't really need a
    function for this; it's a placeholder for future work. */
@@ -4418,6 +4458,7 @@ builtin_status (result)
   switch (result)
     {
     case EX_USAGE:
+    
       r = EX_BADUSAGE;
       break;
     case EX_REDIRFAIL:
@@ -4433,6 +4474,7 @@ builtin_status (result)
   return (r);
 }
 
+/* #IMP 执行内建命令*/
 static int
 execute_builtin (builtin, words, flags, subshell)
      sh_builtin_func_t *builtin;
@@ -4531,8 +4573,9 @@ execute_builtin (builtin, words, flags, subshell)
     }
 
   executing_builtin++;
-  executing_command_builtin |= builtin == command_builtin;
-  result = ((*builtin) (words->next));
+  executing_command_builtin |= builtin   == command_builtin;
+  result = ((*builtin) (words->next)); // #IMP 执行执行的语句，会调用不同的内置方法执行具体的命令，
+  //#IMP 如cd命令会执行cd.def中的cd_builtin方法，内置方法的文件都在builtins目录下
 
   /* This shouldn't happen, but in case `return' comes back instead of
      longjmp'ing, we need to unwind. */
@@ -4555,7 +4598,7 @@ execute_builtin (builtin, words, flags, subshell)
     }
 
   return (result);
-}
+} //execute_builtin
 
 static void
 maybe_restore_getopt_state (gs)
@@ -4966,6 +5009,14 @@ execute_subshell_builtin_or_function (words, redirects, builtin, var,
 
    If BUILTIN is exec_builtin, the redirections specified in REDIRECTS are
    not undone before this function returns. */
+/* 
+if (builtin)
+result = execute_builtin (builtin, words, flags, 0);
+else
+result = execute_function (var, words, flags, fds_to_close, 0, 0);
+*/
+// #IMP 当搜索命令执行结束在：special_builtin, function, shell_builtin其中任何一个得到目标命令，则执行下面函数
+// execute_builtin_or_function 方法有一个分支，分为执行内建命令和执行函数
 static int
 execute_builtin_or_function (words, builtin, var, redirects,
 			     fds_to_close, flags)
@@ -5020,12 +5071,12 @@ execute_builtin_or_function (words, builtin, var, redirects,
   redirection_undo_list = (REDIRECT *)NULL;
 
   if (builtin)
-    result = execute_builtin (builtin, words, flags, 0);
+    result = execute_builtin (builtin, words, flags, 0); //
   else
     result = execute_function (var, words, flags, fds_to_close, 0, 0);
 
   /* We do this before undoing the effects of any redirections. */
-  fflush (stdout);
+  fflush (stdout);　// #NOTE 重定向之前先保存当前标准输出
   fpurge (stdout);
   if (ferror (stdout))
     clearerr (stdout);  
@@ -5073,7 +5124,7 @@ execute_builtin_or_function (words, builtin, var, redirects,
 #endif
 
   return (result);
-}
+} // execute_builtin_or_function
 
 void
 setup_async_signals ()
@@ -5122,6 +5173,7 @@ setup_async_signals ()
 #  define NOTFOUND_HOOK "command_not_found_handle"
 #endif
 
+// #IMP　在搜索命令在三种命令中没找到目标命令，则执行下面函数到磁盘中找目标命令
 static int
 execute_disk_command (words, redirects, command_line, pipe_in, pipe_out,
 		      async, fds_to_close, cmdflags)
