@@ -17,6 +17,12 @@
    You should have received a copy of the GNU General Public License
    along with Bash.  If not, see <http://www.gnu.org/licenses/>.
 */
+/*
+* execute_builtin执行内部命令，execute_disk_command() 执行外部命令
+* 针对不同类型的命令（控制结构、函数、算术等），execute_command_internal()调用不同的函数来完成相应功能。
+* 其中execute_builtin()执行内部命令；execute_disk_command()执行外部文件。
+* execute_disk_command()通过调用jobs.c或nojobs.c中的make_child()来fork新进程执行。
+*/
 
 #include "config.h"
 
