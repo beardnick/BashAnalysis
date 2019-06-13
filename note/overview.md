@@ -5,13 +5,56 @@
 -->
 # Bash分析总览
 
-+ 命令的执行分为两步：
+## 1.函数调用关系
+main()<shell.c>　
+  |-shell_initialize() 初始化, run_start_files() 读取配置文件
+  |-reader_loop() 读取命令,　位于　eval.c
+  | |-parse_command() 分析命令,返回 current_command 形成　command
+  |   |-yyparse() 返回global_command 形成current_command
+  |     |-yylex()
+  |       |-read_token()返回 token 形成global_command
+  |         |-read_token_word()返回word形成token
+  |-execute_command()<execute_cmd.c> 
+    |-execute_command_internal() 根据 command->type 调用不同函数
+    |  |-execute_simple_command
+    |  |-execute_arith_command
+    |  |-execute_cond_command
+    |  |-execute_xxx_command
+    |    |- 递归调用　execute_command_internal, 然后调用 execute_simple_command
+    |-make_child()<job.c> 创建子shell用于执行需要传递到subshell中的函数
+    |  |-fork()
+    |  |-execve()
+    |-expand_word(),expend_words_list_internal()<subst.c>,用于将命令中单词扩展操作
+      |-find_special_bulitin()
+      |-find_function()
+      |-find_shell_builtin()
+
+
+## 2.命令的执行分为两步：
 １．解释命令： shell.c 中　
 COMMAND *global_command = (COMMAND *)NULL; //#IMP 获取命令的结构体
 ２．执行命令：execute_cmd.c 中　execute_command (command) 根据解释的command结构体中命令类型来调用函数执行
 
-+ main.c 函数入口在：　shell.c 中
-  - shell.c 中首先初始化：　shell_initialize ()
++ 命令执行步骤：
+
+1. shell的初始化
+    + main.c 函数入口在：　shell.c 中
+      - shell.c 中首先初始化：　shell_initialize ()
+      - 读取需要的配置文件：　run_startup_files ()
+2. 读取命令：初始化完成之后进入　eval.c reader_loop ()　循环读取命令
+    + 通过　read_command ()　来调用　parse_command() 分析命令，返回命令的结构体GLOBAL_COMMAND后赋值给   current_command然后交给execute_command执行
+    + **parse_command() 后面调用的函数是编译原理中语法分析文法分析等** parse_command()会调用yy.tab.c()和yyparse()
+**获取命令的过程看起来是这样的：**
+main()-->read_loop()-->read_command()-->parse_command()-->yyparse()-->yylex()-->read_token()-->read_token_word()
+                            |                                |                      |                  |
+                          current_command<-------------global_command<------------token<--------------word
+3. 执行命令：　在命令解析得到　current_command 后，调用　execute_command() 来执行命令
+    + execute_command(command) 调用 execute_command_internal()
+    + execute_command_internal 根据命令command->type　调用不同类型的处理函数
+        - if (command->type == cm_subshell && (command->flags & **CMD_NO_FORK**))
+          return (execute_in_subshell (command, asynchronous, pipe_in, pipe_out, fds_to_close));
+          这种
+        - if (command->type == cm_subshell || (command->flags & (**CMD_WANT_SUBSHELL**|CMD_FORCE_SUBSHELL)) || (shell_control_structure (command->type) && (pipe_out != NO_PIPE || pipe_in != NO_PIPE || asynchronous)))
 
 
 
@@ -22,7 +65,11 @@ COMMAND *global_command = (COMMAND *)NULL; //#IMP 获取命令的结构体
 
 
 
-+ ***main函数入口***
+
+
+
+
+## 3.***main函数入口***
   1. location: *shell.c*
 
 -------------------------------

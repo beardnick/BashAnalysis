@@ -1868,6 +1868,7 @@ list_all_jobs (format)
    COMMAND is just for remembering the name of the command; we don't do
    anything else with it.  ASYNC_P says what to do with the tty.  If
    non-zero, then don't give it away. */
+// #IMP 需要在subshell中执行的命令，先要通过make_child来创建子进程,调用系统调用fork, 
 pid_t
 make_child (command, async_p)
      char *command;
@@ -2090,7 +2091,7 @@ make_child (command, async_p)
     }
 
   return (pid);
-}
+} //make_child()
 
 /* These two functions are called only in child processes. */
 void

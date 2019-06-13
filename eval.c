@@ -73,6 +73,9 @@ static sighandler alrm_catcher __P((int));
 // #IMP 2019-06-01 非常重要的循环读取指令的循环
 /* 读取并执行命令，直到达到EOF。这假定输入源已初始化 */
 //#IMP 主循环reader_loop()函数，调用read_command()
+/* Read and execute commands until EOF is reached.  This assumes that
+   the input source has already been initialized. */
+// #IMP 在shell初始化完成之后，循环读取命令直到ＥＯＦ
 int reader_loop ()
 {
   int our_indirection_level;
@@ -277,7 +280,13 @@ static void send_pwd_to_eterm ()
    yyparse将解析的命令保留在全局变量GLOBAL_COMMAND中。
    这是执行PROMPT_COMMAND的地方。 */
 //#IMP read_command()调用parse_command()
-int parse_command ()
+/* Call the YACC-generated parser and return the status of the parse.
+   Input is read from the current input stream (bash_input).  yyparse
+   leaves the parsed command in the global variable GLOBAL_COMMAND.
+   This is where PROMPT_COMMAND is executed. */
+// #IMP read_command()来调用这个函数分析读取命令结构体
+int
+parse_command ()
 {
   int r;
   char *command_to_execute;//要执行的命令
@@ -309,7 +318,7 @@ int parse_command ()
   current_command_line_count = 0;
   //#IMP parse_command()调用语法分析器y.tab.c中的yyparse()是语法分析的开始
   //#NOTE bash也是利用yacc生成的代码来完成语法分析的，y.tab.c的yyparse()是yacc自动生成的
-  r = yyparse ();
+  r = yyparse (); // #IMP 编译原理中语法分析得到命令的格式
 
   if (need_here_doc)
     gather_here_documents ();
@@ -320,7 +329,12 @@ int parse_command ()
 /*  #IMP read_command ()被主函数调用，读取并解析命令，返回解析的状态。
 解析结果的命令字符串保留在全局变量GLOBAL_COMMAND中以供reader_loop使用。
 这是执行shell超时代码的地方。*/
-int read_command ()
+/* Read and parse a command, returning the status of the parse.  The command
+   is left in the globval variable GLOBAL_COMMAND for use by reader_loop.
+   This is where the shell timeout code is executed. */
+// #IMP 读取命令的结构体，得到GLOBAL_COMMAND后赋值给current_command然后交给execute_command执行
+int
+read_command ()
 {
   //#NOTE bash中的变量不强调类型，可以认为都是字符串。
   //#NOTE typedef struct variable SHELL_VAR，变量
