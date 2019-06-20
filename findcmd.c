@@ -334,6 +334,7 @@ get_next_path_element (path_list, path_index_pointer)
    is non-zero, we are running in a `command -p' environment and should use
    the Posix standard path.
    Returns a newly-allocated string. */
+// #IMP 在执行 execute_disk_command 函数时，先调用 search_for_command 找到目标函数
 char *
 search_for_command (pathname, flags)
      const char *pathname;
@@ -412,7 +413,7 @@ search_for_command (pathname, flags)
     }
 
   return (command);
-}
+} //earch_for_command
 
 char *
 user_command_matches (name, flags, state)

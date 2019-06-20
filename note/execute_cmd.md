@@ -46,7 +46,7 @@
         builtin = find_shell_builtin (this_command_name);
       ```
 + 4. 根据搜索命令结果来选择分支执行
-  + 如果搜索命令得到结果，执行　execute_builtin_or_function
+  + 4.1 如果搜索命令得到结果，执行　execute_builtin_or_function
     ```C
     execute_builtin_or_function (words, builtin, var, redirects,
 			     fds_to_close, flags)
@@ -58,17 +58,18 @@
      int flags;
      ```
     execute_builtin_or_function中又有两个分支
-    - 4.1 执行内建命令　execute_builtin
+    - 4.1.1 执行内建命令　execute_builtin
     ```C
     if (builtin)
       result = execute_builtin (builtin, words, flags, 0);
     ```
-    - 4.2 执行函数　execute_function
+    - 4.1.2 执行函数　execute_function
     ```C
     else
       result = execute_function (var, words, flags, fds_to_close, 0, 0);
-  + 如果搜索命令没有在上述三种命令中找到目标命令，则执行　execute_disk_command
-    ```C
+    ```
+  + 4.2 如果搜索命令没有在上述三种命令中找到目标命令，则执行　execute_disk_command
+  ```C
     execute_disk_command (words, redirects, command_line, pipe_in, pipe_out,
 		      async, fds_to_close, cmdflags)
      WORD_LIST *words;
@@ -78,3 +79,55 @@
      struct fd_bitmap *fds_to_close;
      int cmdflags;
     ```
+    - 4.2.1 在execute_disk_command中，先调用findcmd.c 中 search_for_command找到目标函数
+      char *
+      ```C
+      search_for_command (pathname)
+          const char *pathname;
+      {
+          ....
+          hashed_file = phash_search (pathname);
+          ....
+          if (hashed_file)
+            command = hashed_file;
+          else if (absolute_program (pathname))
+            command = savestring (pathname);
+          else
+          {
+            ....
+            command = find_user_command (pathname);
+            ....
+          }
+          return (command);
+      }
+      ```
+      - 命令首先在hash缓存中找
+        - 如果命令包括'/'，则直接返回命令； 否则在hash中搜， 找到则返回命令索引， 没找到则
+
+```C
+      main()
+        |
+   reader_loop()       解析
+        |--------------------------->read_command()-->parse_command()-->yyparse()-->yylex()-->read_token()-->read_token_word()
+        |                                 |                               |                       |                 |
+ execute_command() <-------------- current_command <--------------- global_command <------------token------------word
+        |
+execute_command_internal()
+        |
+ execute_xxxx_command()
+        |
+execute_simple_command()
+        |
+        |--->expand_words()-->expand_word_list_internal()
+        |                                                                  子进程
+        |------------------------------------->execute_disk_command()------------->shell_execve()-->execve()                
+        |                  磁盘命令                       |                |                       |
+        |函数及内置命令                              make_child()          |                       |FAILED
+        |                                                |                |                       |
+execute_builtin_or_function()                          fork()----------->pid                      ->execute_shell_script()
+                                                                          |
+                                                                          --------->return(result)
+                                                                            父进程
+```            
+
++ 好像连接不上GitHub了？？？
